@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	_ "modernc.org/sqlite"
 )
 
 var (
@@ -31,11 +33,22 @@ func tick() tea.Cmd {
 	})
 }
 
+type alertLog struct {
+	RuleName    string
+	Category    string
+	TriggeredAt string
+	Description string
+}
+
 type statusModel struct {
-	client api.AegisServiceClient
-	conn   *grpc.ClientConn
-	status *api.StatusResponse
-	err    error
+	client       api.AegisServiceClient
+	conn         *grpc.ClientConn
+	status       *api.StatusResponse
+	err          error
+	procCount    int
+	fileCount    int
+	netCount     int
+	recentAlerts []alertLog
 }
 
 func (m statusModel) Init() tea.Cmd {
@@ -57,6 +70,26 @@ func (m statusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.status = res
 			m.err = nil
+
+			db, dbErr := sql.Open("sqlite", "telemetry.db")
+			if dbErr == nil {
+				_ = db.QueryRow("SELECT COUNT(*) FROM processes").Scan(&m.procCount)
+				_ = db.QueryRow("SELECT COUNT(*) FROM file_modifications").Scan(&m.fileCount)
+				_ = db.QueryRow("SELECT COUNT(*) FROM network_connections").Scan(&m.netCount)
+
+				rows, queryErr := db.Query("SELECT rule_name, category, triggered_at, description FROM alert_logs ORDER BY triggered_at DESC LIMIT 3")
+				if queryErr == nil {
+					var list []alertLog
+					for rows.Next() {
+						var item alertLog
+						_ = rows.Scan(&item.RuleName, &item.Category, &item.TriggeredAt, &item.Description)
+						list = append(list, item)
+					}
+					rows.Close()
+					m.recentAlerts = list
+				}
+				db.Close()
+			}
 		}
 		return m, tick()
 	}
@@ -69,6 +102,12 @@ func (m statusModel) View() string {
 		Foreground(lipgloss.Color("#00ffd7")).
 		Border(lipgloss.RoundedBorder()).
 		Padding(0, 2).
+		MarginBottom(1)
+
+	var headerStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ff007f")).
+		MarginTop(1).
 		MarginBottom(1)
 
 	var labelStyle = lipgloss.NewStyle().
@@ -96,10 +135,42 @@ func (m statusModel) View() string {
 		if m.status.Status != "" {
 			state = m.status.Status
 		}
+
+		cpuPercent := m.status.CpuUsage
+		barLength := 10
+		filledLength := int((cpuPercent / 100.0) * float64(barLength))
+		if filledLength < 1 && cpuPercent > 0 {
+			filledLength = 1
+		}
+		bar := ""
+		for i := 0; i < barLength; i++ {
+			if i < filledLength {
+				bar += "█"
+			} else {
+				bar += "░"
+			}
+		}
+
 		s += fmt.Sprintf("%s: %s\n", labelStyle.Render("Daemon State"), valueStyle.Render(state))
 		s += fmt.Sprintf("%s: %s\n", labelStyle.Render("Agent Version"), valueStyle.Foreground(lipgloss.Color("#ffd700")).Render(m.status.Version))
-		s += fmt.Sprintf("%s: %s\n", labelStyle.Render("CPU Utilization"), valueStyle.Foreground(lipgloss.Color("#00e5ff")).Render(fmt.Sprintf("%.1f%%", m.status.CpuUsage)))
+		s += fmt.Sprintf("%s: [%s] %s\n", labelStyle.Render("CPU Utilization"), bar, valueStyle.Foreground(lipgloss.Color("#00e5ff")).Render(fmt.Sprintf("%.1f%%", cpuPercent)))
 		s += fmt.Sprintf("%s: %s\n", labelStyle.Render("Memory Footprint"), valueStyle.Foreground(lipgloss.Color("#d700ff")).Render(fmt.Sprintf("%.1f MB", m.status.RamUsage)))
+
+		s += headerStyle.Render("📊 TELEMETRY INGESTION METRICS") + "\n"
+		s += fmt.Sprintf("%s: %d\n", labelStyle.Render("Total Processes"), m.procCount)
+		s += fmt.Sprintf("%s: %d\n", labelStyle.Render("File Modifications"), m.fileCount)
+		s += fmt.Sprintf("%s: %d\n", labelStyle.Render("Network Connections"), m.netCount)
+
+		s += headerStyle.Render("🚨 RECENT SECURITY ALERTS (LIMIT 3)") + "\n"
+		if len(m.recentAlerts) == 0 {
+			s += lipgloss.NewStyle().Foreground(lipgloss.Color("#525252")).Render("No critical alerts logged.") + "\n"
+		} else {
+			for _, alert := range m.recentAlerts {
+				alertTitleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ff0055"))
+				s += fmt.Sprintf("[%s] %s [%s]\n", alert.TriggeredAt, alertTitleStyle.Render(alert.RuleName), alert.Category)
+				s += fmt.Sprintf("  %s\n", alert.Description)
+			}
+		}
 	} else {
 		s += "Fetching initial telemetry data...\n"
 	}
