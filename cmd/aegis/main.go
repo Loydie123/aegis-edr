@@ -23,6 +23,91 @@ var (
 	BuildTime  = "unknown"
 )
 
+type tickMsg time.Time
+
+func tick() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+type statusModel struct {
+	client api.AegisServiceClient
+	conn   *grpc.ClientConn
+	status *api.StatusResponse
+	err    error
+}
+
+func (m statusModel) Init() tea.Cmd {
+	return tick()
+}
+
+func (m statusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "q" || msg.Type == tea.KeyCtrlC || msg.Type == tea.KeyEsc {
+			return m, tea.Quit
+		}
+	case tickMsg:
+		ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
+		res, err := m.client.GetStatus(ctx, &api.StatusRequest{})
+		cancel()
+		if err != nil {
+			m.err = err
+		} else {
+			m.status = res
+			m.err = nil
+		}
+		return m, tick()
+	}
+	return m, nil
+}
+
+func (m statusModel) View() string {
+	var titleStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#00ffd7")).
+		Border(lipgloss.RoundedBorder()).
+		Padding(0, 2).
+		MarginBottom(1)
+
+	var labelStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#a3a3a3")).
+		Width(20)
+
+	var valueStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#00ff00"))
+
+	var errorStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ff0000"))
+
+	var footerStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#525252")).
+		MarginTop(1)
+
+	s := titleStyle.Render("🛡️ AEGIS EDR LIVE MONITOR DASHBOARD") + "\n"
+
+	if m.err != nil {
+		s += errorStyle.Render(fmt.Sprintf("CONNECTION ERROR: %v\n", m.err))
+	} else if m.status != nil {
+		state := "RUNNING"
+		if m.status.Status != "" {
+			state = m.status.Status
+		}
+		s += fmt.Sprintf("%s: %s\n", labelStyle.Render("Daemon State"), valueStyle.Render(state))
+		s += fmt.Sprintf("%s: %s\n", labelStyle.Render("Agent Version"), valueStyle.Foreground(lipgloss.Color("#ffd700")).Render(m.status.Version))
+		s += fmt.Sprintf("%s: %s\n", labelStyle.Render("CPU Utilization"), valueStyle.Foreground(lipgloss.Color("#00e5ff")).Render(fmt.Sprintf("%.1f%%", m.status.CpuUsage)))
+		s += fmt.Sprintf("%s: %s\n", labelStyle.Render("Memory Footprint"), valueStyle.Foreground(lipgloss.Color("#d700ff")).Render(fmt.Sprintf("%.1f MB", m.status.RamUsage)))
+	} else {
+		s += "Fetching initial telemetry data...\n"
+	}
+
+	s += footerStyle.Render("Press [q] or [Esc] to exit dashboard.") + "\n"
+	return s
+}
+
 type healthModel struct {
 	status string
 	err    error
@@ -93,21 +178,14 @@ func main() {
 			}
 			defer conn.Close()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-
-			res, err := client.GetStatus(ctx, &api.StatusRequest{})
-			if err != nil {
-				fmt.Printf("Error: failed to query daemon status: %v\n", err)
-				os.Exit(4)
+			p := tea.NewProgram(statusModel{
+				client: client,
+				conn:   conn,
+			})
+			if _, errRun := p.Run(); errRun != nil {
+				fmt.Printf("Error: status dashboard execution failed: %v\n", errRun)
+				os.Exit(1)
 			}
-
-			fmt.Println("AEGIS AGENT STATUS")
-			fmt.Println("=======================================")
-			fmt.Printf("Daemon Status : %s\n", res.Status)
-			fmt.Printf("Version       : %s\n", res.Version)
-			fmt.Printf("CPU Usage     : %.1f%%\n", res.CpuUsage)
-			fmt.Printf("RAM Footprint : %.1f MB\n", res.RamUsage)
 		},
 	}
 
