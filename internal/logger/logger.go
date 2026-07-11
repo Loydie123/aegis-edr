@@ -1,40 +1,32 @@
 package logger
 
 import (
+	"log/slog"
 	"os"
-
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
-var Log *zap.Logger
+var Log *slog.Logger
 
 func Init(level string) error {
-	var zapLevel zapcore.Level
-	if err := zapLevel.UnmarshalText([]byte(level)); err != nil {
-		zapLevel = zapcore.InfoLevel
+	var slogLevel slog.Level
+	switch level {
+	case "debug":
+		slogLevel = slog.LevelDebug
+	case "info":
+		slogLevel = slog.LevelInfo
+	case "warn":
+		slogLevel = slog.LevelWarn
+	case "error":
+		slogLevel = slog.LevelError
+	default:
+		slogLevel = slog.LevelInfo
 	}
 
-	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "timestamp",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "caller",
-		MessageKey:     "message",
-		StacktraceKey:  "stacktrace",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
+	opts := &slog.HandlerOptions{
+		Level:     slogLevel,
+		AddSource: true,
 	}
 
-	core := zapcore.NewCore(
-		zapcore.NewJSONEncoder(encoderConfig),
-		zapcore.Lock(os.Stdout),
-		zapLevel,
-	)
-
-	Log = zap.New(core, zap.AddCaller())
+	Log = slog.New(slog.NewJSONHandler(os.Stdout, opts))
 	return nil
 }

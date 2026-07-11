@@ -14,7 +14,6 @@ import (
 	"aegis-edr/internal/response/quarantine"
 	"aegis-edr/internal/storage"
 	"aegis-edr/pkg/api"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -42,14 +41,15 @@ func main() {
 	}
 
 	logger.Log.Info("Starting AEGIS EDR Daemon",
-		zap.String("version", Version),
-		zap.String("commit", CommitHash),
-		zap.String("build_time", BuildTime),
+		"version", Version,
+		"commit", CommitHash,
+		"build_time", BuildTime,
 	)
 
 	store, err := storage.NewStorage("telemetry.db")
 	if err != nil {
-		logger.Log.Fatal("failed to initialize storage engine", zap.Error(err))
+		logger.Log.Error("failed to initialize storage engine", "error", err)
+		os.Exit(1)
 	}
 	defer store.Close()
 
@@ -58,7 +58,8 @@ func main() {
 
 	listener, err := net.Listen("unix", ipcPath)
 	if err != nil {
-		logger.Log.Fatal("failed to listen on UDS socket", zap.String("path", ipcPath), zap.Error(err))
+		logger.Log.Error("failed to listen on UDS socket", "path", ipcPath, "error", err)
+		os.Exit(1)
 	}
 	_ = os.Chmod(ipcPath, 0600)
 
@@ -71,23 +72,22 @@ func main() {
 	}
 	quarantiner := quarantine.NewQuarantiner(key)
 
-
 	grpcServer := grpc.NewServer()
 	api.RegisterAegisServiceServer(grpcServer, api.NewServer(store, killer, isolator, quarantiner))
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			logger.Log.Error("gRPC server serve failure", zap.Error(err))
+			logger.Log.Error("gRPC server serve failure", "error", err)
 		}
 	}()
 
-	logger.Log.Info("Aegis daemon is listening on UDS socket", zap.String("path", ipcPath))
+	logger.Log.Info("Aegis daemon is listening on UDS socket", "path", ipcPath)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-sigs
-	logger.Log.Info("Received shutdown signal", zap.String("signal", sig.String()))
+	logger.Log.Info("Received shutdown signal", "signal", sig.String())
 
 	grpcServer.GracefulStop()
 	_ = os.Remove(ipcPath)

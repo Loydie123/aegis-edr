@@ -9,7 +9,6 @@ import (
 
 	"aegis-edr/internal/logger"
 	"aegis-edr/internal/storage"
-	"go.uber.org/zap"
 )
 
 type EventType string
@@ -150,7 +149,7 @@ func (r *Router) Submit(e *Event) bool {
 	case r.eventChan <- e:
 		return true
 	default:
-		logger.Log.Error("Queue overflow: dropping event", zap.String("type", string(e.Type)))
+		logger.Log.Error("Queue overflow: dropping event", "type", string(e.Type))
 		PutEvent(e)
 		return false
 	}
@@ -160,7 +159,7 @@ func (r *Router) flushBatch(batch []*Event) {
 	start := time.Now()
 	tx, err := r.store.Begin()
 	if err != nil {
-		logger.Log.Error("failed to begin telemetry database transaction", zap.Error(err))
+		logger.Log.Error("failed to begin telemetry database transaction", "error", err)
 		for _, e := range batch {
 			PutEvent(e)
 		}
@@ -174,14 +173,14 @@ func (r *Router) flushBatch(batch []*Event) {
 	}
 
 	if err := tx.Commit(); err != nil {
-		logger.Log.Error("failed to commit telemetry database transaction", zap.Error(err))
+		logger.Log.Error("failed to commit telemetry database transaction", "error", err)
 	}
 
 	elapsed := time.Since(start)
 	if elapsed > 10*time.Millisecond {
 		logger.Log.Warn("Latency threshold breached: transaction flush execution exceeded 10ms",
-			zap.Int("batch_size", len(batch)),
-			zap.Duration("elapsed", elapsed),
+			"batch_size", len(batch),
+			"elapsed", elapsed,
 		)
 	}
 }
@@ -195,9 +194,9 @@ func (r *Router) processBatchEvent(ctx context.Context, tx *sql.Tx, e *Event) {
 			strings.Contains(filePathLower, "aegis.sock") {
 
 			logger.Log.Error("CRITICAL: Self-defense alarm! Unauthorized tamper attempt on agent path!",
-				zap.String("filepath", e.FilePath),
-				zap.String("action", e.FileAction),
-				zap.Int32("process_id", e.ProcessID),
+				"filepath", e.FilePath,
+				"action", e.FileAction,
+				"process_id", e.ProcessID,
 			)
 			_, dbErr := tx.ExecContext(ctx,
 				"INSERT INTO alert_logs (rule_name, category, risk_score, description, process_id) VALUES (?, ?, ?, ?, ?)",
@@ -206,7 +205,7 @@ func (r *Router) processBatchEvent(ctx context.Context, tx *sql.Tx, e *Event) {
 				e.ProcessID,
 			)
 			if dbErr != nil {
-				logger.Log.Error("failed to write self-defense alert to database transaction", zap.Error(dbErr))
+				logger.Log.Error("failed to write self-defense alert to database transaction", "error", dbErr)
 			}
 		}
 	}
@@ -231,11 +230,10 @@ func (r *Router) processBatchEvent(ctx context.Context, tx *sql.Tx, e *Event) {
 	}
 
 	if err != nil {
-		logger.Log.Error("failed to write telemetry to database transaction", zap.Error(err))
+		logger.Log.Error("failed to write telemetry to database transaction", "error", err)
 	}
 }
 
 func (r *Router) processEvent(e *Event) {
 	r.flushBatch([]*Event{e})
 }
-
