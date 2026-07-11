@@ -1,0 +1,39 @@
+agent:
+  id: "agent-node-01"
+  log_level: "info"
+  ipc_socket: "/var/run/aegis.sock"
+  heartbeat_interval_seconds: 30
+
+telemetry:
+  process_monitoring: true
+  file_monitoring: true
+  registry_monitoring: true
+  network_monitoring: true
+  usb_monitoring: true
+
+engines:
+  hash_reputation:
+    enabled: true
+    db_path: "/var/lib/aegis/reputation.db"
+  yara:
+    enabled: true
+    rules_dir: "/etc/aegis/rules/yara"
+  sigma:
+    enabled: true
+    rules_dir: "/etc/aegis/rules/sigma"
+  heuristics:
+    entropy_threshold: 7.2
+
+storage:
+  path: "/var/lib/aegis/telemetry.db"
+  retention_days: 7
+  max_size_mb: 500
+
+response:
+  auto_mitigation: false
+  risk_threshold: 8.5
+  actions:
+    - name: "isolate_network"
+      enabled: true
+    - name: "kill_process"
+      enabled: true
