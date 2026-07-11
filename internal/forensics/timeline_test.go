@@ -69,3 +69,34 @@ func TestTimelineBuilder(t *testing.T) {
 		t.Errorf("expected third event to be file at t3, got %v", events[2])
 	}
 }
+
+func BenchmarkBuildTimeline(b *testing.B) {
+	tmpfile, err := os.CreateTemp("", "aegis_bench_foren_*.db")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+	tmpfile.Close()
+
+	store, err := storage.NewStorage(tmpfile.Name())
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer store.Close()
+
+	t1 := time.Now()
+	for i := 0; i < 100; i++ {
+		_, _ = store.RawDBForTest().Exec("INSERT INTO processes (parent_id, binary_path, sha256, command_line, username, launched_at) VALUES (?, ?, ?, ?, ?, ?)",
+			1, "/bin/bash", "hash1", "bash", "root", t1.Add(time.Duration(i)*time.Millisecond))
+	}
+
+	builder := NewTimelineBuilder(store)
+	start := t1.Add(-1 * time.Second)
+	end := t1.Add(1 * time.Second)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = builder.BuildTimeline(start, end)
+	}
+}
+
