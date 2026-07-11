@@ -60,12 +60,17 @@ func main() {
 	if err != nil {
 		logger.Log.Fatal("failed to listen on UDS socket", zap.String("path", ipcPath), zap.Error(err))
 	}
-	_ = os.Chmod(ipcPath, 0666)
+	_ = os.Chmod(ipcPath, 0600)
 
 	killer := process.NewProcessTreeKiller()
 	isolator := network.NewNetworkIsolator()
-	key := []byte("12345678901234567890123456789012")
+	key := []byte(cfg.Response.QuarantineKey)
+	if len(key) != 32 {
+		logger.Log.Warn("Invalid quarantine key length. Using default fallback key.")
+		key = []byte("12345678901234567890123456789012")
+	}
 	quarantiner := quarantine.NewQuarantiner(key)
+
 
 	grpcServer := grpc.NewServer()
 	api.RegisterAegisServiceServer(grpcServer, api.NewServer(store, killer, isolator, quarantiner))

@@ -32,8 +32,10 @@ storage:
 response:
   auto_mitigation: false
   risk_threshold: 8.5
+  quarantine_key: "12345678901234567890123456789012"
   actions:
     - name: "isolate_network"
       enabled: true
     - name: "kill_process"
       enabled: true
+

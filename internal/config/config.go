@@ -63,7 +63,9 @@ type ResponseConfig struct {
 	AutoMitigation bool           `yaml:"auto_mitigation" mapstructure:"auto_mitigation"`
 	RiskThreshold  float64        `yaml:"risk_threshold" mapstructure:"risk_threshold"`
 	Actions        []ActionConfig `yaml:"actions" mapstructure:"actions"`
+	QuarantineKey  string         `yaml:"quarantine_key" mapstructure:"quarantine_key"`
 }
+
 
 type ActionConfig struct {
 	Name    string `yaml:"name" mapstructure:"name"`
