@@ -9,6 +9,8 @@ import (
 
 	"aegis-edr/pkg/api"
 	"aegis-edr/pkg/config"
+	"aegis-edr/pkg/logger"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -19,25 +21,34 @@ var (
 )
 
 func main() {
-	fmt.Printf("Starting AEGIS EDR Daemon version %s (%s) built on %s...\n", Version, CommitHash, BuildTime)
-
 	cfg, err := config.LoadConfig("configs/aegis.yaml")
 	if err != nil {
 		fmt.Printf("Warning: failed to load config: %v. Using defaults.\n", err)
 		cfg = &config.Config{
 			Agent: config.AgentConfig{
+				LogLevel:  "info",
 				IPCSocket: "/tmp/aegis.sock",
 			},
 		}
 	}
+
+	if err := logger.Init(cfg.Agent.LogLevel); err != nil {
+		fmt.Printf("Error: failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+
+	logger.Log.Info("Starting AEGIS EDR Daemon",
+		zap.String("version", Version),
+		zap.String("commit", CommitHash),
+		zap.String("build_time", BuildTime),
+	)
 
 	ipcPath := cfg.Agent.IPCSocket
 	_ = os.Remove(ipcPath)
 
 	listener, err := net.Listen("unix", ipcPath)
 	if err != nil {
-		fmt.Printf("Error: failed to listen on socket %s: %v\n", ipcPath, err)
-		os.Exit(1)
+		logger.Log.Fatal("failed to listen on UDS socket", zap.String("path", ipcPath), zap.Error(err))
 	}
 
 	grpcServer := grpc.NewServer()
@@ -45,18 +56,19 @@ func main() {
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
-			fmt.Printf("gRPC server error: %v\n", err)
+			logger.Log.Error("gRPC server serve failure", zap.Error(err))
 		}
 	}()
 
-	fmt.Printf("Aegis daemon is listening on UDS: %s\n", ipcPath)
+	logger.Log.Info("Aegis daemon is listening on UDS socket", zap.String("path", ipcPath))
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-sigs
-	fmt.Printf("Received signal %s. Shutting down gracefully...\n", sig)
+	logger.Log.Info("Received shutdown signal", zap.String("signal", sig.String()))
 
 	grpcServer.GracefulStop()
 	_ = os.Remove(ipcPath)
+	logger.Log.Info("Aegis daemon stopped gracefully")
 }
