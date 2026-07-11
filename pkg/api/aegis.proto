@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package aegis.api.v1;
+
+option go_package = "aegis-edr/pkg/api;api";
+
+service AegisService {
+  rpc GetStatus(StatusRequest) returns (StatusResponse);
+  rpc RunScan(ScanRequest) returns (stream ScanResult);
+  rpc TriggerResponse(ResponseRequest) returns (ResponseResponse);
+  rpc GetTimeline(TimelineRequest) returns (stream TimelineEvent);
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  string version = 1;
+  string status = 2;
+  double cpu_usage = 3;
+  double ram_usage = 4;
+  int32 yara_rules_loaded = 5;
+  int32 sigma_rules_loaded = 6;
+}
+
+message ScanRequest {
+  string path = 1;
+  bool recursive = 2;
+}
+
+message ScanResult {
+  string file_path = 1;
+  bool matched = 2;
+  string match_rule = 3;
+}
+
+message ResponseRequest {
+  string action = 1;
+  int32 target_pid = 2;
+  string target_file = 3;
+  string security_token = 4;
+}
+
+message ResponseResponse {
+  bool success = 1;
+  string message = 2;
+  string action_executed = 3;
+}
+
+message TimelineRequest {
+  int64 start_time_epoch = 1;
+  int64 end_time_epoch = 2;
+}
+
+message TimelineEvent {
+  string timestamp = 1;
+  string category = 2;
+  string description = 3;
+  double risk_score = 4;
+}
