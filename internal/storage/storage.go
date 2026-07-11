@@ -79,6 +79,7 @@ func (s *Storage) migrate() error {
 			risk_score REAL NOT NULL,
 			description TEXT NOT NULL,
 			process_id INTEGER,
+			trigger_value TEXT,
 			triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(process_id) REFERENCES processes(process_id)
 		);`,
@@ -258,5 +259,30 @@ func (s *Storage) QueryIndicators(ctx context.Context) ([]DBIndicator, error) {
 func (s *Storage) RawDBForTest() *sql.DB {
 	return s.db
 }
+
+func (s *Storage) PruneOldTelemetry(ctx context.Context, cutoff time.Time) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM file_modifications WHERE occurred_at < ? AND process_id NOT IN (SELECT DISTINCT process_id FROM alert_logs WHERE process_id IS NOT NULL)",
+		cutoff,
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.db.ExecContext(ctx,
+		"DELETE FROM network_connections WHERE occurred_at < ? AND process_id NOT IN (SELECT DISTINCT process_id FROM alert_logs WHERE process_id IS NOT NULL)",
+		cutoff,
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.db.ExecContext(ctx,
+		"DELETE FROM processes WHERE launched_at < ? AND process_id NOT IN (SELECT DISTINCT process_id FROM alert_logs WHERE process_id IS NOT NULL)",
+		cutoff,
+	)
+	return err
+}
+
 
 

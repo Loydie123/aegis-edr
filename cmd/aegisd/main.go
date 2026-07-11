@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"aegis-edr/internal/config"
 	"aegis-edr/internal/logger"
@@ -83,12 +85,32 @@ func main() {
 
 	logger.Log.Info("Aegis daemon is listening on UDS socket", "path", ipcPath)
 
+	pruneCtx, cancelPrune := context.WithCancel(context.Background())
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			cutoff := time.Now().Add(-7 * 24 * time.Hour)
+			if err := store.PruneOldTelemetry(pruneCtx, cutoff); err != nil {
+				logger.Log.Error("failed to prune old telemetry", "error", err)
+			} else {
+				logger.Log.Info("completed periodic telemetry pruning")
+			}
+			select {
+			case <-ticker.C:
+			case <-pruneCtx.Done():
+				return
+			}
+		}
+	}()
+
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-sigs
 	logger.Log.Info("Received shutdown signal", "signal", sig.String())
 
+	cancelPrune()
 	grpcServer.GracefulStop()
 	_ = os.Remove(ipcPath)
 	logger.Log.Info("Aegis daemon stopped gracefully")
