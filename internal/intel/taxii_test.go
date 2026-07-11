@@ -63,11 +63,16 @@ func TestTAXIIClientIngestion(t *testing.T) {
 		t.Fatalf("failed to poll feed: %v", err)
 	}
 
-	var pattern, patternType, label string
-	err = store.DB().QueryRow("SELECT pattern, pattern_type, threat_label FROM indicators").Scan(&pattern, &patternType, &label)
+	list, err := store.QueryIndicators(context.Background())
 	if err != nil {
 		t.Fatalf("failed to query indicators table: %v", err)
 	}
+	if len(list) != 1 {
+		t.Fatalf("expected 1 indicator, got %d", len(list))
+	}
+	pattern := list[0].Pattern
+	patternType := list[0].PatternType
+	label := list[0].ThreatLabel
 
 	if pattern != "[file:hashes.sha256 = 'abcd']" {
 		t.Errorf("expected pattern [file:hashes.sha256 = 'abcd'], got %s", pattern)

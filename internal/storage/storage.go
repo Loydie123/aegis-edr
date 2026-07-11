@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -24,7 +25,6 @@ func NewStorage(dbPath string) (*Storage, error) {
 
 	db.SetMaxOpenConns(1)
 
-
 	s := &Storage{db: db}
 	if err := s.migrate(); err != nil {
 		db.Close()
@@ -38,8 +38,8 @@ func (s *Storage) Close() error {
 	return s.db.Close()
 }
 
-func (s *Storage) DB() *sql.DB {
-	return s.db
+func (s *Storage) Begin() (*sql.Tx, error) {
+	return s.db.Begin()
 }
 
 func (s *Storage) migrate() error {
@@ -137,3 +137,126 @@ func (s *Storage) InsertAlertLog(ctx context.Context, ruleName, category string,
 	)
 	return err
 }
+
+func (s *Storage) InsertIndicator(ctx context.Context, pattern, patternType, threatLabel string) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT INTO indicators (pattern, pattern_type, threat_label) VALUES (?, ?, ?)",
+		pattern, patternType, threatLabel,
+	)
+	return err
+}
+
+type DBProcess struct {
+	BinaryPath  string
+	CommandLine string
+	Username    string
+	LaunchedAt  time.Time
+}
+
+func (s *Storage) QueryProcesses(ctx context.Context, start, end time.Time) ([]DBProcess, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT binary_path, command_line, username, launched_at FROM processes WHERE launched_at BETWEEN ? AND ?",
+		start, end,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []DBProcess
+	for rows.Next() {
+		var p DBProcess
+		if err := rows.Scan(&p.BinaryPath, &p.CommandLine, &p.Username, &p.LaunchedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, p)
+	}
+	return list, nil
+}
+
+type DBFileModification struct {
+	FilePath   string
+	Action     string
+	OccurredAt time.Time
+}
+
+func (s *Storage) QueryFileModifications(ctx context.Context, start, end time.Time) ([]DBFileModification, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT file_path, action, occurred_at FROM file_modifications WHERE occurred_at BETWEEN ? AND ?",
+		start, end,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []DBFileModification
+	for rows.Next() {
+		var f DBFileModification
+		if err := rows.Scan(&f.FilePath, &f.Action, &f.OccurredAt); err != nil {
+			return nil, err
+		}
+		list = append(list, f)
+	}
+	return list, nil
+}
+
+type DBNetworkConnection struct {
+	Protocol   string
+	LocalIP    string
+	LocalPort  int
+	RemoteIP   string
+	RemotePort int
+	OccurredAt time.Time
+}
+
+func (s *Storage) QueryNetworkConnections(ctx context.Context, start, end time.Time) ([]DBNetworkConnection, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT protocol, local_ip, local_port, remote_ip, remote_port, occurred_at FROM network_connections WHERE occurred_at BETWEEN ? AND ?",
+		start, end,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []DBNetworkConnection
+	for rows.Next() {
+		var n DBNetworkConnection
+		if err := rows.Scan(&n.Protocol, &n.LocalIP, &n.LocalPort, &n.RemoteIP, &n.RemotePort, &n.OccurredAt); err != nil {
+			return nil, err
+		}
+		list = append(list, n)
+	}
+	return list, nil
+}
+
+type DBIndicator struct {
+	Pattern     string
+	PatternType string
+	ThreatLabel string
+}
+
+func (s *Storage) QueryIndicators(ctx context.Context) ([]DBIndicator, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT pattern, pattern_type, threat_label FROM indicators")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []DBIndicator
+	for rows.Next() {
+		var ind DBIndicator
+		if err := rows.Scan(&ind.Pattern, &ind.PatternType, &ind.ThreatLabel); err != nil {
+			return nil, err
+		}
+		list = append(list, ind)
+	}
+	return list, nil
+}
+
+func (s *Storage) RawDBForTest() *sql.DB {
+	return s.db
+}
+
+

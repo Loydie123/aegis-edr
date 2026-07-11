@@ -44,7 +44,7 @@ func TestRouterLifecycle(t *testing.T) {
 	router.Stop()
 
 	var count int
-	err = store.DB().QueryRow("SELECT count(*) FROM processes WHERE binary_path='/bin/ls'").Scan(&count)
+	err = store.RawDBForTest().QueryRow("SELECT count(*) FROM processes WHERE binary_path='/bin/ls'").Scan(&count)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +139,7 @@ func TestSelfDefenseTrigger(t *testing.T) {
 	router := NewRouter(5, store)
 	router.Start()
 
-	_, err = store.DB().Exec(
+	_, err = store.RawDBForTest().Exec(
 		"INSERT INTO processes (process_id, parent_id, binary_path, sha256, command_line, username) VALUES (?, ?, ?, ?, ?, ?)",
 		444, 100, "/bin/tamper", "5678", "tamper -la", "root",
 	)
@@ -162,7 +162,7 @@ func TestSelfDefenseTrigger(t *testing.T) {
 	router.Stop()
 
 	var count int
-	err = store.DB().QueryRow("SELECT count(*) FROM alert_logs WHERE rule_name='AGENT_SELF_DEFENSE'").Scan(&count)
+	err = store.RawDBForTest().QueryRow("SELECT count(*) FROM alert_logs WHERE rule_name='AGENT_SELF_DEFENSE'").Scan(&count)
 
 	if err != nil {
 		t.Fatal(err)

@@ -54,10 +54,7 @@ func (c *TAXIIClient) IngestSTIXBundle(data []byte) error {
 			if len(obj.Labels) > 0 {
 				label = obj.Labels[0]
 			}
-			_, err := c.store.DB().Exec(
-				"INSERT INTO indicators (pattern, pattern_type, threat_label) VALUES (?, ?, ?)",
-				obj.Pattern, obj.PatternType, label,
-			)
+			err := c.store.InsertIndicator(context.Background(), obj.Pattern, obj.PatternType, label)
 			if err != nil {
 				return err
 			}

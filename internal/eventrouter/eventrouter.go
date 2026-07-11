@@ -158,7 +158,7 @@ func (r *Router) Submit(e *Event) bool {
 
 func (r *Router) flushBatch(batch []*Event) {
 	start := time.Now()
-	tx, err := r.store.DB().Begin()
+	tx, err := r.store.Begin()
 	if err != nil {
 		logger.Log.Error("failed to begin telemetry database transaction", zap.Error(err))
 		for _, e := range batch {
