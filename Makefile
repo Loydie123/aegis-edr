@@ -69,7 +69,7 @@ format:
 ## generate: Compile gRPC Protobuf schemas to Go client/server stubs
 generate:
 	@echo "📦 Generating gRPC stubs from protobuf contracts..."
-	protoc --go_out=. --go-grpc_out=. pkg/api/*.proto
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative pkg/api/*.proto
 	@echo "✅ Protobuf schemas generated successfully."
 
 ## install: Install binaries to standard system directories and load configs
