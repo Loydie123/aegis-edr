@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"aegis-edr/pkg/storage"
+	"aegis-edr/internal/storage"
 )
 
 type STIXBundle struct {

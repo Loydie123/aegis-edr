@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	"aegis-edr/pkg/forensics"
-	"aegis-edr/pkg/response/network"
-	"aegis-edr/pkg/response/process"
-	"aegis-edr/pkg/response/quarantine"
-	"aegis-edr/pkg/storage"
+	"aegis-edr/internal/forensics"
+	"aegis-edr/internal/response/network"
+	"aegis-edr/internal/response/process"
+	"aegis-edr/internal/response/quarantine"
+	"aegis-edr/internal/storage"
 )
 
 type Server struct {

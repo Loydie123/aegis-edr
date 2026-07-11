@@ -1,7 +1,7 @@
 package platform
 
 import (
-	"aegis-edr/pkg/monitor/eventrouter"
+	"aegis-edr/internal/monitor/eventrouter"
 )
 
 type ProcessMonitor interface {

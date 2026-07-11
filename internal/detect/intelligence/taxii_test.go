@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"aegis-edr/pkg/storage"
+	"aegis-edr/internal/storage"
 )
 
 func TestTAXIIClientIngestion(t *testing.T) {

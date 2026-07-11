@@ -4,9 +4,9 @@ import (
 	"os"
 	"testing"
 
-	"aegis-edr/pkg/logger"
-	"aegis-edr/pkg/monitor/eventrouter"
-	"aegis-edr/pkg/storage"
+	"aegis-edr/internal/logger"
+	"aegis-edr/internal/monitor/eventrouter"
+	"aegis-edr/internal/storage"
 )
 
 func TestMain(m *testing.M) {

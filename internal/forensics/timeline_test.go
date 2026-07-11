@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"aegis-edr/pkg/storage"
+	"aegis-edr/internal/storage"
 )
 
 func TestTimelineBuilder(t *testing.T) {

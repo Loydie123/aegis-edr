@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"aegis-edr/pkg/api"
-	"aegis-edr/pkg/config"
+	"aegis-edr/internal/config"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

@@ -7,9 +7,9 @@ This document details the plugin subsystem architecture, SDK specifications, lif
 ## 1. WebAssembly (WASM) Sandbox Architecture
 
 To prevent third-party extensions from compromising EDR agent stability, AEGIS uses a WebAssembly (WASM) sandbox architecture:
-- **Sandbox Container**: Plugins are compiled to WebAssembly bytecode and execute within a guest sandbox managed by the **Wasmtime** runtime.
+- **Sandbox Container**: Plugins are compiled to WebAssembly bytecode and execute within a guest sandbox managed by the **Wazero** runtime.
 - **In-Process Memory Isolation**: The guest WASM plugin cannot access the parent Go process's heap or run arbitrary system calls unless explicitly permitted via host export functions.
-- **Resource Constraints**: Each plugin runs with strict bounds on memory allocations (default: 16MB) and execution CPU limits (WASM fuel tracking), preventing resource starvation issues.
+- **Resource Constraints**: Each plugin runs with strict bounds on memory allocations (default: 16MB) and execution CPU limits, preventing resource starvation issues.
 
 ```
 +---------------------------------------------------------------------------------+
@@ -21,7 +21,7 @@ To prevent third-party extensions from compromising EDR agent stability, AEGIS u
 |                                          |                                      |
 |                                          v                                      |
 |  +---------------------------------------v-----------------------------------+  |
-|  |                          Wasmtime Guest Sandbox                           |  |
+|  |                           Wazero Guest Sandbox                            |  |
 |  |                                                                           |  |
 |  |   +---------------------+  +--------------------+  +-------------------+  |  |
 |  |   |  Memory Constraint  |  |  CPU Fuel Limits   |  | Signed Public Key |  |  |
@@ -66,14 +66,14 @@ The daemon orchestrates plugin execution states securely:
 
 ```
 [Discovery] ---> [Crypto Sign Check] ---> [Instantiate VM] ---> [Init Hook]
-                                                                     |
-                                                                     v
+                                                                      |
+                                                                      v
 [Shutdown] <--- [Unregister Hooks]  <--- [Execution Loop] <--- [Register Event]
 ```
 
 1. **Discovery**: The daemon scans the plugin folder (`/var/lib/aegis/plugins/` or `C:\ProgramData\Aegis\Plugins\`) for `.wasm` files.
 2. **Signature Verification**: Validates file hashes and digital signatures against the trusted public keys store. Unsigned plugins are rejected.
-3. **VM Instantiation**: Initializes a Wasmtime runtime engine instance for the verified plugin.
+3. **VM Instantiation**: Initializes a Wazero runtime engine instance for the verified plugin.
 4. **Execution Initialization**: Calls the guest `aegis_plugin_init` function to establish hooks.
 5. **Event Loop Hook**: The event router forwards telemetry events to registered hooks.
 6. **Graceful Shutdown**: When stopping, the daemon calls `aegis_plugin_shutdown` to allow plugins to clean up states and flush diagnostic logs.

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"aegis-edr/pkg/storage"
+	"aegis-edr/internal/storage"
 )
 
 type TimelineEvent struct {

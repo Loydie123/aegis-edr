@@ -8,9 +8,9 @@ import (
 	"syscall"
 
 	"aegis-edr/pkg/api"
-	"aegis-edr/pkg/config"
-	"aegis-edr/pkg/logger"
-	"aegis-edr/pkg/storage"
+	"aegis-edr/internal/config"
+	"aegis-edr/internal/logger"
+	"aegis-edr/internal/storage"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )

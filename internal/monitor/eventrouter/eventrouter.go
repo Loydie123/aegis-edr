@@ -1,11 +1,12 @@
 package eventrouter
 
 import (
+	"strings"
 	"sync"
 	"time"
 
-	"aegis-edr/pkg/logger"
-	"aegis-edr/pkg/storage"
+	"aegis-edr/internal/logger"
+	"aegis-edr/internal/storage"
 	"go.uber.org/zap"
 )
 
@@ -135,6 +136,30 @@ func (r *Router) Submit(e *Event) bool {
 func (r *Router) processEvent(e *Event) {
 	start := time.Now()
 	defer PutEvent(e)
+
+	if e.Type == TypeFile && e.FileAction != "read" && e.FileAction != "open" {
+		filePathLower := strings.ToLower(e.FilePath)
+		if strings.Contains(filePathLower, "telemetry.db") ||
+			strings.Contains(filePathLower, "aegis.yaml") ||
+			strings.Contains(filePathLower, "aegisd") ||
+			strings.Contains(filePathLower, "aegis.sock") {
+
+			logger.Log.Error("CRITICAL: Self-defense alarm! Unauthorized tamper attempt on agent path!",
+				zap.String("filepath", e.FilePath),
+				zap.String("action", e.FileAction),
+				zap.Int32("process_id", e.ProcessID),
+			)
+			_, dbErr := r.store.DB().Exec(
+				"INSERT INTO alert_logs (rule_name, category, risk_score, description, process_id, triggered_at) VALUES (?, ?, ?, ?, ?, ?)",
+				"AGENT_SELF_DEFENSE", "anti-tampering", 1.0,
+				"Unauthorized write/modify attempt detected on protected agent path: "+e.FilePath,
+				e.ProcessID, e.Timestamp,
+			)
+			if dbErr != nil {
+				logger.Log.Error("failed to write self-defense alert to database", zap.Error(dbErr))
+			}
+		}
+	}
 
 	var err error
 	switch e.Type {

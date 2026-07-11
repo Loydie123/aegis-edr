@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"aegis-edr/pkg/logger"
-	"aegis-edr/pkg/storage"
+	"aegis-edr/internal/logger"
+	"aegis-edr/internal/storage"
 )
 
 func TestRouterLifecycle(t *testing.T) {
@@ -119,3 +119,56 @@ func BenchmarkProcessEvent(b *testing.B) {
 		router.processEvent(e)
 	}
 }
+
+func TestSelfDefenseTrigger(t *testing.T) {
+	_ = logger.Init("info")
+
+	tmpfile, err := os.CreateTemp("", "aegis_self_defense_*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+	tmpfile.Close()
+
+	store, err := storage.NewStorage(tmpfile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	router := NewRouter(5, store)
+	router.Start()
+
+	_, err = store.DB().Exec(
+		"INSERT INTO processes (process_id, parent_id, binary_path, sha256, command_line, username) VALUES (?, ?, ?, ?, ?, ?)",
+		444, 100, "/bin/tamper", "5678", "tamper -la", "root",
+	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := GetEvent()
+	e.Type = TypeFile
+	e.Timestamp = time.Now()
+	e.FilePath = "/var/lib/aegis/telemetry.db"
+	e.FileAction = "write"
+	e.ProcessID = 444
+
+	if !router.Submit(e) {
+		t.Error("expected self-defense write event submission to succeed")
+	}
+
+	router.Stop()
+
+	var count int
+	err = store.DB().QueryRow("SELECT count(*) FROM alert_logs WHERE rule_name='AGENT_SELF_DEFENSE'").Scan(&count)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 self-defense alert log, got %d", count)
+	}
+}
+
