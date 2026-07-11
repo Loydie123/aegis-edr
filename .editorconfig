@@ -1,0 +1,40 @@
+# ==============================================================================
+# AEGIS EDR - EditorConfig
+# ==============================================================================
+
+root = true
+
+# Global configurations: Unix-style line endings and UTF-8 charset
+[*]
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+charset = utf-8
+
+# Go source files: Indent with tabs, tab width 4
+[*.go]
+indent_style = tab
+indent_size = 4
+tab_width = 4
+
+# Protocol Buffer definitions: Indent with spaces, width 2
+[*.proto]
+indent_style = space
+indent_size = 2
+
+# Configuration metadata and rules (YAML & JSON)
+[*.{yaml,yml,json}]
+indent_style = space
+indent_size = 2
+
+# Technical manuals and specifications (Markdown)
+[*.md]
+indent_style = space
+indent_size = 2
+trim_trailing_whitespace = false
+
+# Makefiles require literal tab formatting
+[Makefile]
+indent_style = tab
+indent_size = 4
+tab_width = 4

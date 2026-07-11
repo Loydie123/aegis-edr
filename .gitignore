@@ -1,0 +1,123 @@
+# ==============================================================================
+# AEGIS EDR - Git Ignore Configurations
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Compilation & Binary Artifacts
+# ------------------------------------------------------------------------------
+# Ignore all built binary releases and command-line execution builds.
+/bin/
+/dist/
+/release/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.prof
+
+# ------------------------------------------------------------------------------
+# 2. Go Specific Ignores
+# ------------------------------------------------------------------------------
+# Ignore Go workspace configuration files (but keep go.mod and go.sum).
+# Ignore testing coverage profiles and benchmark CPU/memory outputs.
+go.work
+go.work.sum
+*.out
+*.test
+*.prof
+cpu.pprof
+mem.pprof
+block.pprof
+mutex.pprof
+coverage.html
+
+# ------------------------------------------------------------------------------
+# 3. Local Database & Cache Files
+# ------------------------------------------------------------------------------
+# Ignore local SQLite databases, Write-Ahead Logs, and BadgerDB LSM folders.
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+/data/
+/var/
+/tmp/
+/quarantine/
+.badger/
+badger/
+
+# ------------------------------------------------------------------------------
+# 4. Environment & Secret Variables
+# ------------------------------------------------------------------------------
+# Ignore active secret environment configurations (never commit tokens or private keys).
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+*.csr
+secrets.yaml
+
+# ------------------------------------------------------------------------------
+# 5. Developer IDE Workspaces
+# ------------------------------------------------------------------------------
+# JetBrains IDEs (Goland, IntelliJ, PyCharm)
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# VS Code Workspaces
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+*.code-workspace
+
+# ------------------------------------------------------------------------------
+# 6. Operating System Specific Files
+# ------------------------------------------------------------------------------
+# macOS metadata logs and thumbs
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Windows metadata logs and thumbs
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux temporary and backup files
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# ------------------------------------------------------------------------------
+# 7. Package Managers & Frontends
+# ------------------------------------------------------------------------------
+# Ignore node modules and pnpm stores for the fleet dashboard
+node_modules/
+.pnpm-store/
+.npm/
+pnpm-debug.log*
+
+# ------------------------------------------------------------------------------
+# 8. Container & Docker Artifacts
+# ------------------------------------------------------------------------------
+# Ignore active container state files
+.docker/
+docker-compose.override.yml

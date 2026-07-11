@@ -1,0 +1,37 @@
+# ==============================================================================
+# AEGIS EDR - Code Owners Configuration
+# ==============================================================================
+
+# Global maintainers fallback ownership
+*                               @aegis-edr/maintainers
+
+# Documentation and Specifications
+/docs/                          @aegis-edr/docs-team
+*.md                            @aegis-edr/docs-team
+
+# Telemetry Monitoring Probes & OS Drivers (PAL)
+/pkg/monitor/platform/          @aegis-edr/kernel-team
+/pkg/monitor/platform/windows/  @aegis-edr/windows-kernel-team
+/pkg/monitor/platform/linux/    @aegis-edr/linux-kernel-team
+/pkg/monitor/platform/darwin/   @aegis-edr/macos-kernel-team
+
+# Core Detection Engines (YARA & Sigma Parsing)
+/pkg/detect/                    @aegis-edr/detection-team
+/pkg/detect/signature/          @aegis-edr/detection-team
+/pkg/detect/behavioral/         @aegis-edr/detection-team
+
+# Containment & active mitigation systems
+/pkg/response/                  @aegis-edr/incident-response-team
+
+# WebAssembly Plugin SDK & WASM guest runtime
+/pkg/sdk/                       @aegis-edr/plugin-sdk-team
+
+# Persistence, Database layer, & Local Storage
+/pkg/storage/                   @aegis-edr/database-team
+
+# IPC protocols & gRPC endpoints definitions
+/pkg/api/                       @aegis-edr/api-team
+/pkg/api/*.proto                @aegis-edr/api-team
+
+# GitHub Actions workflows configuration
+/.github/workflows/             @aegis-edr/devops-team
