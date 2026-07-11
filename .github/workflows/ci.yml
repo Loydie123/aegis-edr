@@ -21,6 +21,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libyara-dev pkg-config
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -39,6 +44,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libyara-dev pkg-config
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -54,6 +64,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libyara-dev pkg-config
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -64,10 +79,6 @@ jobs:
           mkdir -p bin
           GOOS=linux GOARCH=amd64 go build -o bin/aegis-linux-amd64 cmd/aegis/main.go
           GOOS=linux GOARCH=amd64 go build -o bin/aegisd-linux-amd64 cmd/aegisd/main.go
-          GOOS=darwin GOARCH=arm64 go build -o bin/aegis-darwin-arm64 cmd/aegis/main.go
-          GOOS=darwin GOARCH=arm64 go build -o bin/aegisd-darwin-arm64 cmd/aegisd/main.go
-          GOOS=windows GOARCH=amd64 go build -o bin/aegis-windows-amd64.exe cmd/aegis/main.go
-          GOOS=windows GOARCH=amd64 go build -o bin/aegisd-windows-amd64.exe cmd/aegisd/main.go
 
       - name: Generate SBOM
         uses: CycloneDX/gh-gomod-generate-sbom@v2
