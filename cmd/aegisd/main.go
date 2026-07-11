@@ -57,6 +57,8 @@ func main() {
 	if err != nil {
 		logger.Log.Fatal("failed to listen on UDS socket", zap.String("path", ipcPath), zap.Error(err))
 	}
+	_ = os.Chmod(ipcPath, 0666)
+
 
 	grpcServer := grpc.NewServer()
 	api.RegisterAegisServiceServer(grpcServer, api.NewServer(store))
