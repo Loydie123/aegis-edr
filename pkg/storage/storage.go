@@ -78,6 +78,13 @@ func (s *Storage) migrate() error {
 			triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY(process_id) REFERENCES processes(process_id)
 		);`,
+		`CREATE TABLE IF NOT EXISTS indicators (
+			indicator_id INTEGER PRIMARY KEY AUTOINCREMENT,
+			pattern TEXT NOT NULL,
+			pattern_type TEXT NOT NULL,
+			threat_label TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);`,
 		`CREATE INDEX IF NOT EXISTS idx_processes_launched_at ON processes(launched_at DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_file_path ON file_modifications(file_path);`,
 		`CREATE INDEX IF NOT EXISTS idx_network_dest ON network_connections(remote_ip, remote_port);`,
