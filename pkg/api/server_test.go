@@ -19,7 +19,7 @@ func TestGetStatus(t *testing.T) {
 	defer lis.Close()
 
 	s := grpc.NewServer()
-	RegisterAegisServiceServer(s, NewServer())
+	RegisterAegisServiceServer(s, NewServer(nil))
 	defer s.Stop()
 
 	go func() {
@@ -56,7 +56,7 @@ func TestTriggerResponse(t *testing.T) {
 	defer lis.Close()
 
 	s := grpc.NewServer()
-	RegisterAegisServiceServer(s, NewServer())
+	RegisterAegisServiceServer(s, NewServer(nil))
 	defer s.Stop()
 
 	go func() {
@@ -71,7 +71,8 @@ func TestTriggerResponse(t *testing.T) {
 
 	client := NewAegisServiceClient(conn)
 	res, err := client.TriggerResponse(context.Background(), &ResponseRequest{
-		Action: "KILL",
+		Action:        "KILL",
+		SecurityToken: "test-token",
 	})
 	if err != nil {
 		t.Fatalf("failed to trigger response: %v", err)

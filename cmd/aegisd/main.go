@@ -10,6 +10,7 @@ import (
 	"aegis-edr/pkg/api"
 	"aegis-edr/pkg/config"
 	"aegis-edr/pkg/logger"
+	"aegis-edr/pkg/storage"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -43,6 +44,12 @@ func main() {
 		zap.String("build_time", BuildTime),
 	)
 
+	store, err := storage.NewStorage("telemetry.db")
+	if err != nil {
+		logger.Log.Fatal("failed to initialize storage engine", zap.Error(err))
+	}
+	defer store.Close()
+
 	ipcPath := cfg.Agent.IPCSocket
 	_ = os.Remove(ipcPath)
 
@@ -52,7 +59,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	api.RegisterAegisServiceServer(grpcServer, api.NewServer())
+	api.RegisterAegisServiceServer(grpcServer, api.NewServer(store))
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {

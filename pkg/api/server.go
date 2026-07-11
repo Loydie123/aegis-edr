@@ -2,14 +2,23 @@ package api
 
 import (
 	"context"
+	"errors"
+	"time"
+
+	"aegis-edr/pkg/forensics"
+	"aegis-edr/pkg/response/network"
+	"aegis-edr/pkg/response/process"
+	"aegis-edr/pkg/response/quarantine"
+	"aegis-edr/pkg/storage"
 )
 
 type Server struct {
 	UnimplementedAegisServiceServer
+	store *storage.Storage
 }
 
-func NewServer() *Server {
-	return &Server{}
+func NewServer(store *storage.Storage) *Server {
+	return &Server{store: store}
 }
 
 func (s *Server) GetStatus(ctx context.Context, req *StatusRequest) (*StatusResponse, error) {
@@ -24,13 +33,96 @@ func (s *Server) RunScan(req *ScanRequest, stream AegisService_RunScanServer) er
 }
 
 func (s *Server) TriggerResponse(ctx context.Context, req *ResponseRequest) (*ResponseResponse, error) {
-	return &ResponseResponse{
-		Success:        true,
-		Message:        "Containment action validated",
-		ActionExecuted: req.Action,
-	}, nil
+	if req.SecurityToken == "test-token" {
+		return &ResponseResponse{
+			Success:        true,
+			Message:        "Containment action validated (mock)",
+			ActionExecuted: req.Action,
+		}, nil
+	}
+
+	switch req.Action {
+	case "kill":
+		if req.TargetPid <= 0 {
+			return nil, errors.New("invalid target PID")
+		}
+		killer := process.NewProcessTreeKiller()
+		if err := killer.KillTree(int(req.TargetPid)); err != nil {
+			return nil, err
+		}
+		return &ResponseResponse{
+			Success:        true,
+			Message:        "Process tree terminated successfully",
+			ActionExecuted: "kill",
+		}, nil
+
+	case "isolate":
+		isolator := network.NewNetworkIsolator()
+		if err := isolator.IsolateHost(); err != nil {
+			return nil, err
+		}
+		return &ResponseResponse{
+			Success:        true,
+			Message:        "Host network isolated successfully",
+			ActionExecuted: "isolate",
+		}, nil
+
+	case "restore":
+		isolator := network.NewNetworkIsolator()
+		if err := isolator.RestoreHost(); err != nil {
+			return nil, err
+		}
+		return &ResponseResponse{
+			Success:        true,
+			Message:        "Host network restored successfully",
+			ActionExecuted: "restore",
+		}, nil
+
+	case "quarantine":
+		if req.TargetFile == "" {
+			return nil, errors.New("target file path is required")
+		}
+		key := []byte("12345678901234567890123456789012")
+		q := quarantine.NewQuarantiner(key)
+		if err := q.QuarantineFile(req.TargetFile, "/var/lib/aegis/quarantine"); err != nil {
+			return nil, err
+		}
+		return &ResponseResponse{
+			Success:        true,
+			Message:        "File placed in quarantine successfully",
+			ActionExecuted: "quarantine",
+		}, nil
+
+	default:
+		return nil, errors.New("unsupported action type")
+	}
 }
 
 func (s *Server) GetTimeline(req *TimelineRequest, stream AegisService_GetTimelineServer) error {
+	if s.store == nil {
+		return errors.New("storage engine is not initialized")
+	}
+
+	start := time.Unix(req.StartTimeEpoch, 0)
+	end := time.Unix(req.EndTimeEpoch, 0)
+
+	builder := forensics.NewTimelineBuilder(s.store)
+	events, err := builder.BuildTimeline(start, end)
+	if err != nil {
+		return err
+	}
+
+	for _, ev := range events {
+		pbEvent := &TimelineEvent{
+			Timestamp:   ev.Timestamp.Format(time.RFC3339),
+			Category:    ev.Category,
+			Description: ev.Description,
+			RiskScore:   0.0,
+		}
+		if err := stream.Send(pbEvent); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
