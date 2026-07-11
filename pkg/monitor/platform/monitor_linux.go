@@ -22,3 +22,20 @@ func (m *LinuxProcessMonitor) Start(router *eventrouter.Router) error {
 func (m *LinuxProcessMonitor) Stop() error {
 	return nil
 }
+
+type LinuxFileMonitor struct {
+	router *eventrouter.Router
+}
+
+func newFileMonitor() FileMonitor {
+	return &LinuxFileMonitor{}
+}
+
+func (m *LinuxFileMonitor) Start(router *eventrouter.Router) error {
+	m.router = router
+	return nil
+}
+
+func (m *LinuxFileMonitor) Stop() error {
+	return nil
+}

@@ -12,3 +12,12 @@ type ProcessMonitor interface {
 func NewProcessMonitor() ProcessMonitor {
 	return newProcessMonitor()
 }
+
+type FileMonitor interface {
+	Start(router *eventrouter.Router) error
+	Stop() error
+}
+
+func NewFileMonitor() FileMonitor {
+	return newFileMonitor()
+}
