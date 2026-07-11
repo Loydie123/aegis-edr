@@ -10,6 +10,7 @@ import (
 	"aegis-edr/internal/storage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 type mockKiller struct{}
@@ -44,7 +45,7 @@ func TestGetStatus(t *testing.T) {
 	defer lis.Close()
 
 	s := grpc.NewServer()
-	RegisterAegisServiceServer(s, NewServer(nil, &mockKiller{}, &mockIsolator{}, &mockQuarantiner{}))
+	RegisterAegisServiceServer(s, NewServer(nil, &mockKiller{}, &mockIsolator{}, &mockQuarantiner{}, ""))
 	defer s.Stop()
 
 	go func() {
@@ -81,7 +82,7 @@ func TestTriggerResponse(t *testing.T) {
 	defer lis.Close()
 
 	s := grpc.NewServer()
-	RegisterAegisServiceServer(s, NewServer(nil, &mockKiller{}, &mockIsolator{}, &mockQuarantiner{}))
+	RegisterAegisServiceServer(s, NewServer(nil, &mockKiller{}, &mockIsolator{}, &mockQuarantiner{}, ""))
 	defer s.Stop()
 
 	go func() {
@@ -141,7 +142,7 @@ func TestGetTimeline(t *testing.T) {
 	defer lis.Close()
 
 	s := grpc.NewServer()
-	RegisterAegisServiceServer(s, NewServer(store, &mockKiller{}, &mockIsolator{}, &mockQuarantiner{}))
+	RegisterAegisServiceServer(s, NewServer(store, &mockKiller{}, &mockIsolator{}, &mockQuarantiner{}, ""))
 	defer s.Stop()
 
 	go func() {
@@ -175,3 +176,57 @@ func TestGetTimeline(t *testing.T) {
 		t.Errorf("unexpected description: %s", event.Description)
 	}
 }
+
+func TestServerIPCAuthentication(t *testing.T) {
+	t.Parallel()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen: %v", err)
+	}
+	defer lis.Close()
+
+	apiServer := NewServer(nil, &mockKiller{}, &mockIsolator{}, &mockQuarantiner{}, "secret-token")
+	s := grpc.NewServer(
+		grpc.UnaryInterceptor(apiServer.UnaryAuthInterceptor),
+	)
+	RegisterAegisServiceServer(s, apiServer)
+	defer s.Stop()
+
+	go func() {
+		_ = s.Serve(lis)
+	}()
+
+	conn, err := grpc.Dial(lis.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("failed to dial: %v", err)
+	}
+	defer conn.Close()
+
+	client := NewAegisServiceClient(conn)
+
+	// Test 1: Query without token (unauthenticated)
+	_, err = client.GetStatus(context.Background(), &StatusRequest{})
+	if err == nil {
+		t.Error("expected query without token to fail")
+	}
+
+	// Test 2: Query with incorrect token (unauthenticated)
+	badCtx := metadata.AppendToOutgoingContext(context.Background(), "x-aegis-token", "wrong-token")
+	_, err = client.GetStatus(badCtx, &StatusRequest{})
+	if err == nil {
+		t.Error("expected query with incorrect token to fail")
+	}
+
+	// Test 3: Query with correct token (authenticated)
+	goodCtx := metadata.AppendToOutgoingContext(context.Background(), "x-aegis-token", "secret-token")
+	res, err := client.GetStatus(goodCtx, &StatusRequest{})
+	if err != nil {
+		t.Fatalf("expected query with correct token to succeed, got %v", err)
+	}
+
+	if res.Status != "RUNNING" {
+		t.Errorf("expected status RUNNING, got %s", res.Status)
+	}
+}
+

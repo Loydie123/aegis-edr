@@ -73,9 +73,14 @@ func main() {
 		key = []byte("12345678901234567890123456789012")
 	}
 	quarantiner := quarantine.NewQuarantiner(key)
+	ipcToken := cfg.Agent.IPCToken
+	apiServer := api.NewServer(store, killer, isolator, quarantiner, ipcToken)
 
-	grpcServer := grpc.NewServer()
-	api.RegisterAegisServiceServer(grpcServer, api.NewServer(store, killer, isolator, quarantiner))
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(apiServer.UnaryAuthInterceptor),
+		grpc.StreamInterceptor(apiServer.StreamAuthInterceptor),
+	)
+	api.RegisterAegisServiceServer(grpcServer, apiServer)
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {

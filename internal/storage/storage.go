@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"os"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -15,12 +16,19 @@ type Storage struct {
 func NewStorage(dbPath string) (*Storage, error) {
 	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)")
 	if err != nil {
-		return nil, err
+		return handleCorruptDB(dbPath)
 	}
 
 	if err := db.Ping(); err != nil {
 		db.Close()
-		return nil, err
+		return handleCorruptDB(dbPath)
+	}
+
+	var integrity string
+	err = db.QueryRow("PRAGMA integrity_check(1)").Scan(&integrity)
+	if err != nil || integrity != "ok" {
+		db.Close()
+		return handleCorruptDB(dbPath)
 	}
 
 	db.SetMaxOpenConns(1)
@@ -31,6 +39,21 @@ func NewStorage(dbPath string) (*Storage, error) {
 		return nil, err
 	}
 
+	return s, nil
+}
+
+func handleCorruptDB(dbPath string) (*Storage, error) {
+	_ = os.Rename(dbPath, dbPath+".corrupt")
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)")
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1)
+	s := &Storage{db: db}
+	if err := s.migrate(); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return s, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"aegis-edr/internal/logger"
@@ -69,11 +70,12 @@ func PutEvent(e *Event) {
 }
 
 type Router struct {
-	eventChan chan *Event
-	store     *storage.Storage
-	capacity  int
-	closeChan chan struct{}
-	wg        sync.WaitGroup
+	eventChan     chan *Event
+	store         *storage.Storage
+	capacity      int
+	closeChan     chan struct{}
+	wg            sync.WaitGroup
+	droppedEvents int64
 }
 
 func NewRouter(capacity int, store *storage.Storage) *Router {
@@ -83,6 +85,10 @@ func NewRouter(capacity int, store *storage.Storage) *Router {
 		capacity:  capacity,
 		closeChan: make(chan struct{}),
 	}
+}
+
+func (r *Router) DroppedCount() int64 {
+	return atomic.LoadInt64(&r.droppedEvents)
 }
 
 func (r *Router) Start() {
@@ -139,7 +145,8 @@ func (r *Router) Submit(e *Event) bool {
 
 	if qLen >= watermark {
 		if e.Type == TypeFile && e.FileAction == "read" {
-			logger.Log.Warn("Triage mode active: dropping file read event due to queue pressure")
+			atomic.AddInt64(&r.droppedEvents, 1)
+			logger.Log.Warn("Triage mode active: dropping file read event due to queue pressure", "dropped_count", r.DroppedCount())
 			PutEvent(e)
 			return false
 		}
@@ -149,7 +156,8 @@ func (r *Router) Submit(e *Event) bool {
 	case r.eventChan <- e:
 		return true
 	default:
-		logger.Log.Error("Queue overflow: dropping event", "type", string(e.Type))
+		atomic.AddInt64(&r.droppedEvents, 1)
+		logger.Log.Error("Queue overflow: dropping event", "type", string(e.Type), "dropped_count", r.DroppedCount())
 		PutEvent(e)
 		return false
 	}

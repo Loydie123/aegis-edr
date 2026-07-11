@@ -7,6 +7,9 @@ import (
 
 	"aegis-edr/internal/forensics"
 	"aegis-edr/internal/storage"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 )
 
 type ProcessKiller interface {
@@ -28,15 +31,47 @@ type Server struct {
 	killer      ProcessKiller
 	isolator    NetworkIsolator
 	quarantiner Quarantiner
+	token       string
 }
 
-func NewServer(store *storage.Storage, killer ProcessKiller, isolator NetworkIsolator, quarantiner Quarantiner) *Server {
+func NewServer(store *storage.Storage, killer ProcessKiller, isolator NetworkIsolator, quarantiner Quarantiner, token string) *Server {
 	return &Server{
 		store:       store,
 		killer:      killer,
 		isolator:    isolator,
 		quarantiner: quarantiner,
+		token:       token,
 	}
+}
+
+func (s *Server) UnaryAuthInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	if s.token == "" {
+		return handler(ctx, req)
+	}
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil, grpc.Errorf(codes.Unauthenticated, "missing metadata")
+	}
+	tokens := md["x-aegis-token"]
+	if len(tokens) == 0 || tokens[0] != s.token {
+		return nil, grpc.Errorf(codes.Unauthenticated, "invalid token")
+	}
+	return handler(ctx, req)
+}
+
+func (s *Server) StreamAuthInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	if s.token == "" {
+		return handler(srv, ss)
+	}
+	md, ok := metadata.FromIncomingContext(ss.Context())
+	if !ok {
+		return grpc.Errorf(codes.Unauthenticated, "missing metadata")
+	}
+	tokens := md["x-aegis-token"]
+	if len(tokens) == 0 || tokens[0] != s.token {
+		return grpc.Errorf(codes.Unauthenticated, "invalid token")
+	}
+	return handler(srv, ss)
 }
 
 func (s *Server) GetStatus(ctx context.Context, req *StatusRequest) (*StatusResponse, error) {
@@ -119,6 +154,10 @@ func (s *Server) GetTimeline(req *TimelineRequest, stream AegisService_GetTimeli
 	events, err := builder.BuildTimeline(start, end)
 	if err != nil {
 		return err
+	}
+
+	if len(events) > 5000 {
+		events = events[:5000]
 	}
 
 	for _, ev := range events {

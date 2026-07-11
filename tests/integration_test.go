@@ -55,7 +55,7 @@ func TestE2EPipeline(t *testing.T) {
 	defer lis.Close()
 
 	grpcServer := grpc.NewServer()
-	api.RegisterAegisServiceServer(grpcServer, api.NewServer(store, &dummyKiller{}, &dummyIsolator{}, &dummyQuarantiner{}))
+	api.RegisterAegisServiceServer(grpcServer, api.NewServer(store, &dummyKiller{}, &dummyIsolator{}, &dummyQuarantiner{}, ""))
 	defer grpcServer.Stop()
 
 	go func() {

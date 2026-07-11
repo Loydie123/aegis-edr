@@ -16,6 +16,7 @@ type AgentConfig struct {
 	ID                       string `yaml:"id" mapstructure:"id"`
 	LogLevel                 string `yaml:"log_level" mapstructure:"log_level"`
 	IPCSocket                string `yaml:"ipc_socket" mapstructure:"ipc_socket"`
+	IPCToken                 string `yaml:"ipc_token" mapstructure:"ipc_token"`
 	HeartbeatIntervalSeconds int    `yaml:"heartbeat_interval_seconds" mapstructure:"heartbeat_interval_seconds"`
 }
 

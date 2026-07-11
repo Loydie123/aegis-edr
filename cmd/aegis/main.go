@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	_ "modernc.org/sqlite"
 )
 
@@ -215,12 +216,29 @@ func getGRPCClient() (api.AegisServiceClient, *grpc.ClientConn, error) {
 		}
 	}
 
+	token := cfg.Agent.IPCToken
+	unaryInterceptor := func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		if token != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, "x-aegis-token", token)
+		}
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+
+	streamInterceptor := func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
+		if token != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, "x-aegis-token", token)
+		}
+		return streamer(ctx, desc, cc, method, opts...)
+	}
+
 	conn, err := grpc.Dial(
 		cfg.Agent.IPCSocket,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 			return net.Dial("unix", addr)
 		}),
+		grpc.WithUnaryInterceptor(unaryInterceptor),
+		grpc.WithStreamInterceptor(streamInterceptor),
 	)
 	if err != nil {
 		return nil, nil, err
