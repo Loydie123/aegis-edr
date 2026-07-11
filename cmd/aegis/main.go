@@ -8,8 +8,10 @@ import (
 	"os"
 	"time"
 
-	"aegis-edr/pkg/api"
 	"aegis-edr/internal/config"
+	"aegis-edr/pkg/api"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -20,6 +22,32 @@ var (
 	CommitHash = "unknown"
 	BuildTime  = "unknown"
 )
+
+type healthModel struct {
+	status string
+	err    error
+}
+
+func (m healthModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m healthModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.Type == tea.KeyCtrlC || msg.Type == tea.KeyEsc {
+			return m, tea.Quit
+		}
+	}
+	return m, tea.Quit
+}
+
+func (m healthModel) View() string {
+	if m.err != nil {
+		return fmt.Sprintf("Health Check: FAILED (%v)\n", m.err)
+	}
+	return fmt.Sprintf("Health Check: OK (%s)\n", m.status)
+}
 
 func getGRPCClient() (api.AegisServiceClient, *grpc.ClientConn, error) {
 	cfg, err := config.LoadConfig("configs/aegis.yaml")
@@ -98,22 +126,55 @@ func main() {
 		Short: "Perform connection and dependency health checks",
 		Run: func(cmd *cobra.Command, args []string) {
 			client, conn, err := getGRPCClient()
-			if err != nil {
-				fmt.Printf("Health Check: FAILED (Cannot connect to daemon socket: %v)\n", err)
-				os.Exit(1)
-			}
-			defer conn.Close()
-
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-
-			res, err := client.GetStatus(ctx, &api.StatusRequest{})
-			if err != nil {
-				fmt.Printf("Health Check: FAILED (gRPC call failed: %v)\n", err)
-				os.Exit(1)
+			var status string
+			if err == nil {
+				defer conn.Close()
+				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				res, errStatus := client.GetStatus(ctx, &api.StatusRequest{})
+				if errStatus == nil {
+					status = fmt.Sprintf("Daemon state: %s, version: %s", res.Status, res.Version)
+				} else {
+					err = errStatus
+				}
 			}
 
-			fmt.Printf("Health Check: OK (Daemon state: %s, version: %s)\n", res.Status, res.Version)
+			p := tea.NewProgram(healthModel{status: status, err: err})
+			if _, errRun := p.Run(); errRun != nil {
+				fmt.Printf("Error: bubbletea health program failed: %v\n", errRun)
+				os.Exit(1)
+			}
+		},
+	}
+
+	var configCmd = &cobra.Command{
+		Use:   "config",
+		Short: "Display active agent configuration properties",
+		Run: func(cmd *cobra.Command, args []string) {
+			cfg, err := config.LoadConfig("configs/aegis.yaml")
+			if err != nil {
+				fmt.Printf("Error: failed to load configuration: %v\n", err)
+				os.Exit(1)
+			}
+
+			var titleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#00ffd7")).
+				MarginBottom(1)
+
+			var labelStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#ffffff")).
+				Width(25)
+
+			var valueStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#ffd700"))
+
+			fmt.Println(titleStyle.Render("AEGIS CONFIGURATION VALUES"))
+			fmt.Println("=======================================")
+			fmt.Printf("%s: %s\n", labelStyle.Render("Agent ID"), valueStyle.Render(cfg.Agent.ID))
+			fmt.Printf("%s: %s\n", labelStyle.Render("Log Level"), valueStyle.Render(cfg.Agent.LogLevel))
+			fmt.Printf("%s: %s\n", labelStyle.Render("IPC Socket Path"), valueStyle.Render(cfg.Agent.IPCSocket))
+			fmt.Printf("%s: %s\n", labelStyle.Render("Heartbeat Interval"), valueStyle.Render(fmt.Sprintf("%d seconds", cfg.Agent.HeartbeatIntervalSeconds)))
 		},
 	}
 
@@ -278,7 +339,7 @@ func main() {
 	}
 	forensicsCmd.Flags().IntVar(&startOffsetMinutes, "minutes", 60, "Timeline window start offset in minutes")
 
-	rootCmd.AddCommand(statusCmd, versionCmd, healthCmd, responseCmd, forensicsCmd)
+	rootCmd.AddCommand(statusCmd, versionCmd, healthCmd, configCmd, responseCmd, forensicsCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
