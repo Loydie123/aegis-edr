@@ -59,7 +59,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 1.1: Project Monorepo Initialization
 - **Description**: Setup project folders and initialize the Go root modules.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: XS
 - **Dependencies**: None
@@ -67,7 +67,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 1.2: Local IPC Service Definition (gRPC)
 - **Description**: Write proto contracts and compile Go client/server stubs.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: S
 - **Dependencies**: Task 1.1
@@ -75,7 +75,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 1.3: Daemon-CLI Client Integration
 - **Description**: Wire CLI Cobra flags to gRPC client. Create background runner in daemon.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: M
 - **Dependencies**: Task 1.2
@@ -83,7 +83,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 1.4: Database Schema & Migration Setup
 - **Description**: Configure SQLite connection pool in WAL mode. Create tables: `processes`, `file_modifications`, `network_connections`, and `alert_logs`.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: M
 - **Dependencies**: Task 1.3
@@ -91,7 +91,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 1.5: Zero-Allocation Structured Logger
 - **Description**: Instantiate Zap JSON logger.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: High
 - **Estimated Effort**: S
 - **Dependencies**: Task 1.1
@@ -113,7 +113,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 2.1: PAL Process Telemetry Hook
 - **Description**: Implement process capture callbacks (Windows ETW, Linux eBPF execve, macOS ESF notify exec).
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: L
 - **Dependencies**: Task 1.4
@@ -121,7 +121,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 2.2: PAL File Telemetry Hook
 - **Description**: Implement file write/rename modifications callbacks.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: L
 - **Dependencies**: Task 1.4
@@ -129,7 +129,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 2.3: PAL Network Telemetry Hook
 - **Description**: Implement socket capture callbacks (WFP, Linux connect tracepoint, macOS Network Extension).
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: L
 - **Dependencies**: Task 1.4
@@ -137,7 +137,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 2.4: Windows Registry Telemetry Hook
 - **Description**: Implement registry key monitor (ETW Registry provider).
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: High
 - **Estimated Effort**: M
 - **Dependencies**: Task 1.4
@@ -145,7 +145,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 2.5: Ingress Queue & Normalizer
 - **Description**: Setup standard ECS map schema. Configure Go ring buffer channels with drop logic.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: M
 - **Dependencies**: Tasks 2.1, 2.2, 2.3
@@ -167,7 +167,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 3.1: libyara Cgo Engine Wrapper
 - **Description**: Wrap YARA library bindings. Coordinate background scan threads.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: L
 - **Dependencies**: Task 2.5
@@ -175,7 +175,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 3.2: Streaming Sigma Rules Parser
 - **Description**: Construct Sigma YAML parser and state matching cache.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: High
 - **Estimated Effort**: L
 - **Dependencies**: Task 2.5
@@ -183,7 +183,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 3.3: Virtual Memory Heuristics Monitor
 - **Description**: Add process virtual memory range traversals checking for RWX segments.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: High
 - **Estimated Effort**: L
 - **Dependencies**: Task 2.5
@@ -191,7 +191,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 3.4: Compound Risk Scoring Engine
 - **Description**: Implement weighted calculations formula, outputting alerts metadata.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: M
 - **Dependencies**: Tasks 3.1, 3.2, 3.3
@@ -213,7 +213,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 4.1: Process Tree Containment Action
 - **Description**: Build recursive tree kill tool using native OS APIs.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: M
 - **Dependencies**: Task 3.4
@@ -221,7 +221,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 4.2: Host Network Isolation Action
 - **Description**: Inject firewall rules blocking network traffic except control API ports.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: L
 - **Dependencies**: Task 3.4
@@ -229,7 +229,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 4.3: Cryptographic File Quarantine Protocol
 - **Description**: Write AES-256-GCM file encryptor. Relocate files and strip permissions.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: High
 - **Estimated Effort**: M
 - **Dependencies**: Task 3.4
@@ -237,7 +237,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 4.4: Chronological Timeline Forensics
 - **Description**: Query database telemetry chronologically and compile reports.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: High
 - **Estimated Effort**: M
 - **Dependencies**: Task 1.4
@@ -259,7 +259,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 5.1: WebAssembly Plugin Sandbox (Wasmtime)
 - **Description**: Integrate Wasmtime SDK. Implement lifecycle validation and memory pages limit.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: High
 - **Estimated Effort**: XL
 - **Dependencies**: Task 4.1
@@ -267,7 +267,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 5.2: TAXII Threat Ingestion Engine
 - **Description**: Build TAXII 2.1 client poller and STIX JSON parser.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Medium
 - **Estimated Effort**: L
 - **Dependencies**: Task 1.4
@@ -275,7 +275,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 5.3: mTLS Certificates Sync Setup
 - **Description**: Implement dynamic rotation client loops using HTTPS payloads.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: High
 - **Estimated Effort**: M
 - **Dependencies**: Task 1.2
@@ -297,7 +297,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 6.1: Core Fuzz Testing Suite
 - **Description**: Set up Go fuzz tests on format parsers (PE, ELF) and rule builders.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: High
 - **Estimated Effort**: M
 - **Dependencies**: Tasks 3.1, 3.2
@@ -305,7 +305,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 6.2: Benchmark Latency Analysis
 - **Description**: Implement CI performance tests.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Medium
 - **Estimated Effort**: S
 - **Dependencies**: Task 2.5
@@ -313,7 +313,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 6.3: GitHub Actions CI/CD Pipeline
 - **Description**: Write workflows for linters, dependency audits, build compilations, and SBOM exports.
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: Critical
 - **Estimated Effort**: M
 - **Dependencies**: Task 1.1
@@ -321,7 +321,7 @@ This document contains the complete development backlog for the AEGIS EDR projec
 
 #### Task 6.4: OS Native Package Installers
 - **Description**: Package binaries into native formats: deb/rpm (Linux), pkg/dmg (macOS), and msi (Windows).
-- **Status**: Todo
+- **Status**: Done
 - **Priority**: High
 - **Estimated Effort**: L
 - **Dependencies**: Task 6.3
