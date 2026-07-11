@@ -77,3 +77,35 @@ func TestFileMonitorLifecycle(t *testing.T) {
 		t.Fatalf("expected Stop to succeed, got %v", err)
 	}
 }
+
+func TestNetworkMonitorLifecycle(t *testing.T) {
+	t.Parallel()
+
+	tmpfile, err := os.CreateTemp("", "aegis_plat_net_*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+	tmpfile.Close()
+
+	store, err := storage.NewStorage(tmpfile.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	router := eventrouter.NewRouter(10, store)
+	router.Start()
+	defer router.Stop()
+
+	nm := NewNetworkMonitor()
+	err = nm.Start(router)
+	if err != nil {
+		t.Fatalf("expected Start to succeed, got %v", err)
+	}
+
+	err = nm.Stop()
+	if err != nil {
+		t.Fatalf("expected Stop to succeed, got %v", err)
+	}
+}

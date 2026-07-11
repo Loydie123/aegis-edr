@@ -39,3 +39,20 @@ func (m *DarwinFileMonitor) Start(router *eventrouter.Router) error {
 func (m *DarwinFileMonitor) Stop() error {
 	return nil
 }
+
+type DarwinNetworkMonitor struct {
+	router *eventrouter.Router
+}
+
+func newNetworkMonitor() NetworkMonitor {
+	return &DarwinNetworkMonitor{}
+}
+
+func (m *DarwinNetworkMonitor) Start(router *eventrouter.Router) error {
+	m.router = router
+	return nil
+}
+
+func (m *DarwinNetworkMonitor) Stop() error {
+	return nil
+}

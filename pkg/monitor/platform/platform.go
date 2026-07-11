@@ -21,3 +21,12 @@ type FileMonitor interface {
 func NewFileMonitor() FileMonitor {
 	return newFileMonitor()
 }
+
+type NetworkMonitor interface {
+	Start(router *eventrouter.Router) error
+	Stop() error
+}
+
+func NewNetworkMonitor() NetworkMonitor {
+	return newNetworkMonitor()
+}
