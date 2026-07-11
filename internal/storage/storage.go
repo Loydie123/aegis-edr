@@ -22,6 +22,9 @@ func NewStorage(dbPath string) (*Storage, error) {
 		return nil, err
 	}
 
+	db.SetMaxOpenConns(1)
+
+
 	s := &Storage{db: db}
 	if err := s.migrate(); err != nil {
 		db.Close()

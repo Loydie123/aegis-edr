@@ -2,6 +2,7 @@ package eventrouter
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"sync"
 	"time"
@@ -89,16 +90,37 @@ func (r *Router) Start() {
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+
+		var batch []*Event
+		flush := func() {
+			if len(batch) == 0 {
+				return
+			}
+			r.flushBatch(batch)
+			batch = nil
+		}
+
 		for {
 			select {
 			case e := <-r.eventChan:
-				r.processEvent(e)
+				batch = append(batch, e)
+				if len(batch) >= 100 {
+					flush()
+				}
+			case <-ticker.C:
+				flush()
 			case <-r.closeChan:
 				for {
 					select {
 					case e := <-r.eventChan:
-						r.processEvent(e)
+						batch = append(batch, e)
+						if len(batch) >= 100 {
+							flush()
+						}
 					default:
+						flush()
 						return
 					}
 				}
@@ -134,12 +156,37 @@ func (r *Router) Submit(e *Event) bool {
 	}
 }
 
-func (r *Router) processEvent(e *Event) {
+func (r *Router) flushBatch(batch []*Event) {
 	start := time.Now()
-	defer PutEvent(e)
+	tx, err := r.store.DB().Begin()
+	if err != nil {
+		logger.Log.Error("failed to begin telemetry database transaction", zap.Error(err))
+		for _, e := range batch {
+			PutEvent(e)
+		}
+		return
+	}
 
 	ctx := context.Background()
+	for _, e := range batch {
+		r.processBatchEvent(ctx, tx, e)
+		PutEvent(e)
+	}
 
+	if err := tx.Commit(); err != nil {
+		logger.Log.Error("failed to commit telemetry database transaction", zap.Error(err))
+	}
+
+	elapsed := time.Since(start)
+	if elapsed > 10*time.Millisecond {
+		logger.Log.Warn("Latency threshold breached: transaction flush execution exceeded 10ms",
+			zap.Int("batch_size", len(batch)),
+			zap.Duration("elapsed", elapsed),
+		)
+	}
+}
+
+func (r *Router) processBatchEvent(ctx context.Context, tx *sql.Tx, e *Event) {
 	if e.Type == TypeFile && e.FileAction != "read" && e.FileAction != "open" {
 		filePathLower := strings.ToLower(e.FilePath)
 		if strings.Contains(filePathLower, "telemetry.db") ||
@@ -152,13 +199,14 @@ func (r *Router) processEvent(e *Event) {
 				zap.String("action", e.FileAction),
 				zap.Int32("process_id", e.ProcessID),
 			)
-			dbErr := r.store.InsertAlertLog(ctx,
+			_, dbErr := tx.ExecContext(ctx,
+				"INSERT INTO alert_logs (rule_name, category, risk_score, description, process_id) VALUES (?, ?, ?, ?, ?)",
 				"AGENT_SELF_DEFENSE", "anti-tampering", 1.0,
 				"Unauthorized write/modify attempt detected on protected agent path: "+e.FilePath,
-				int(e.ProcessID),
+				e.ProcessID,
 			)
 			if dbErr != nil {
-				logger.Log.Error("failed to write self-defense alert to database", zap.Error(dbErr))
+				logger.Log.Error("failed to write self-defense alert to database transaction", zap.Error(dbErr))
 			}
 		}
 	}
@@ -166,28 +214,28 @@ func (r *Router) processEvent(e *Event) {
 	var err error
 	switch e.Type {
 	case TypeProcess:
-		_, err = r.store.InsertProcess(ctx,
-			int(e.ParentID), e.BinaryPath, e.SHA256, e.CommandLine, e.Username,
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO processes (parent_id, binary_path, sha256, command_line, username) VALUES (?, ?, ?, ?, ?)",
+			e.ParentID, e.BinaryPath, e.SHA256, e.CommandLine, e.Username,
 		)
 	case TypeFile:
-		err = r.store.InsertFileModification(ctx,
-			int(e.ProcessID), e.FilePath, e.FileAction,
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO file_modifications (process_id, file_path, action) VALUES (?, ?, ?)",
+			e.ProcessID, e.FilePath, e.FileAction,
 		)
 	case TypeNetwork:
-		err = r.store.InsertNetworkConnection(ctx,
-			int(e.ProcessID), e.Protocol, e.LocalIP, int(e.LocalPort), e.RemoteIP, int(e.RemotePort),
+		_, err = tx.ExecContext(ctx,
+			"INSERT INTO network_connections (process_id, protocol, local_ip, local_port, remote_ip, remote_port) VALUES (?, ?, ?, ?, ?, ?)",
+			e.ProcessID, e.Protocol, e.LocalIP, e.LocalPort, e.RemoteIP, e.RemotePort,
 		)
 	}
 
 	if err != nil {
-		logger.Log.Error("failed to write telemetry to database", zap.Error(err))
-	}
-
-	elapsed := time.Since(start)
-	if elapsed > time.Millisecond {
-		logger.Log.Warn("Latency threshold breached: telemetry processing exceeded 1ms",
-			zap.String("type", string(e.Type)),
-			zap.Duration("elapsed", elapsed),
-		)
+		logger.Log.Error("failed to write telemetry to database transaction", zap.Error(err))
 	}
 }
+
+func (r *Router) processEvent(e *Event) {
+	r.flushBatch([]*Event{e})
+}
+
