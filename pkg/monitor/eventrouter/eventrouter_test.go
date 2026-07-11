@@ -87,3 +87,35 @@ func TestRouterTriageDrop(t *testing.T) {
 		t.Error("expected file read event to be dropped due to watermark capacity pressure")
 	}
 }
+
+func BenchmarkProcessEvent(b *testing.B) {
+	_ = logger.Init("error")
+
+	tmpfile, err := os.CreateTemp("", "aegis_bench_*.db")
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+	tmpfile.Close()
+
+	store, err := storage.NewStorage(tmpfile.Name())
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer store.Close()
+
+	router := NewRouter(10000, store)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		e := GetEvent()
+		e.Type = TypeProcess
+		e.Timestamp = time.Now()
+		e.ParentID = 100
+		e.BinaryPath = "/bin/ls"
+		e.SHA256 = "1234"
+		e.CommandLine = "ls -la"
+		e.Username = "root"
+		router.processEvent(e)
+	}
+}

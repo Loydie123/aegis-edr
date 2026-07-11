@@ -133,23 +133,37 @@ func (r *Router) Submit(e *Event) bool {
 }
 
 func (r *Router) processEvent(e *Event) {
+	start := time.Now()
 	defer PutEvent(e)
 
+	var err error
 	switch e.Type {
 	case TypeProcess:
-		_, _ = r.store.DB().Exec(
+		_, err = r.store.DB().Exec(
 			"INSERT INTO processes (parent_id, binary_path, sha256, command_line, username, launched_at) VALUES (?, ?, ?, ?, ?, ?)",
 			e.ParentID, e.BinaryPath, e.SHA256, e.CommandLine, e.Username, e.Timestamp,
 		)
 	case TypeFile:
-		_, _ = r.store.DB().Exec(
+		_, err = r.store.DB().Exec(
 			"INSERT INTO file_modifications (process_id, file_path, action, occurred_at) VALUES (?, ?, ?, ?)",
 			e.ProcessID, e.FilePath, e.FileAction, e.Timestamp,
 		)
 	case TypeNetwork:
-		_, _ = r.store.DB().Exec(
+		_, err = r.store.DB().Exec(
 			"INSERT INTO network_connections (process_id, protocol, local_ip, local_port, remote_ip, remote_port, occurred_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
 			e.ProcessID, e.Protocol, e.LocalIP, e.LocalPort, e.RemoteIP, e.RemotePort, e.Timestamp,
+		)
+	}
+
+	if err != nil {
+		logger.Log.Error("failed to write telemetry to database", zap.Error(err))
+	}
+
+	elapsed := time.Since(start)
+	if elapsed > time.Millisecond {
+		logger.Log.Warn("Latency threshold breached: telemetry processing exceeded 1ms",
+			zap.String("type", string(e.Type)),
+			zap.Duration("elapsed", elapsed),
 		)
 	}
 }
