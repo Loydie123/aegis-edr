@@ -1,0 +1,83 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Run Vet
+        run: go vet ./...
+
+      - name: Run Govulncheck
+        uses: golang/govulncheck-action@v1
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Run Unit Tests
+        run: go test -v -short -race -coverprofile=coverage.out ./...
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Compile Binaries
+        run: |
+          mkdir -p bin
+          GOOS=linux GOARCH=amd64 go build -o bin/aegis-linux-amd64 cmd/aegis/main.go
+          GOOS=linux GOARCH=amd64 go build -o bin/aegisd-linux-amd64 cmd/aegisd/main.go
+          GOOS=darwin GOARCH=arm64 go build -o bin/aegis-darwin-arm64 cmd/aegis/main.go
+          GOOS=darwin GOARCH=arm64 go build -o bin/aegisd-darwin-arm64 cmd/aegisd/main.go
+          GOOS=windows GOARCH=amd64 go build -o bin/aegis-windows-amd64.exe cmd/aegis/main.go
+          GOOS=windows GOARCH=amd64 go build -o bin/aegisd-windows-amd64.exe cmd/aegisd/main.go
+
+      - name: Generate SBOM
+        uses: CycloneDX/gh-gomod-generate-sbom@v2
+        with:
+          output: bom.json
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Sign Binaries
+        run: |
+          cosign sign-blob --yes --output-signature bin/aegis-linux-amd64.sig bin/aegis-linux-amd64
+          cosign sign-blob --yes --output-signature bin/aegisd-linux-amd64.sig bin/aegisd-linux-amd64
