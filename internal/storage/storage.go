@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 
 	_ "modernc.org/sqlite"
@@ -97,4 +98,39 @@ func (s *Storage) migrate() error {
 		}
 	}
 	return nil
+}
+
+func (s *Storage) InsertProcess(ctx context.Context, parentID int, binaryPath, sha256, commandLine, username string) (int64, error) {
+	res, err := s.db.ExecContext(ctx,
+		"INSERT INTO processes (parent_id, binary_path, sha256, command_line, username) VALUES (?, ?, ?, ?, ?)",
+		parentID, binaryPath, sha256, commandLine, username,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func (s *Storage) InsertFileModification(ctx context.Context, processID int, filePath, action string) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT INTO file_modifications (process_id, file_path, action) VALUES (?, ?, ?)",
+		processID, filePath, action,
+	)
+	return err
+}
+
+func (s *Storage) InsertNetworkConnection(ctx context.Context, processID int, protocol, localIP string, localPort int, remoteIP string, remotePort int) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT INTO network_connections (process_id, protocol, local_ip, local_port, remote_ip, remote_port) VALUES (?, ?, ?, ?, ?, ?)",
+		processID, protocol, localIP, localPort, remoteIP, remotePort,
+	)
+	return err
+}
+
+func (s *Storage) InsertAlertLog(ctx context.Context, ruleName, category string, riskScore float64, description string, processID int) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT INTO alert_logs (rule_name, category, risk_score, description, process_id) VALUES (?, ?, ?, ?, ?)",
+		ruleName, category, riskScore, description, processID,
+	)
+	return err
 }
