@@ -34,6 +34,10 @@ func (s *Storage) Close() error {
 	return s.db.Close()
 }
 
+func (s *Storage) DB() *sql.DB {
+	return s.db
+}
+
 func (s *Storage) migrate() error {
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS processes (
