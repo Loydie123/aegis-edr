@@ -9,6 +9,28 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+type mockKiller struct{}
+
+func (m *mockKiller) KillTree(pid int) error {
+	return nil
+}
+
+type mockIsolator struct{}
+
+func (m *mockIsolator) IsolateHost() error {
+	return nil
+}
+
+func (m *mockIsolator) RestoreHost() error {
+	return nil
+}
+
+type mockQuarantiner struct{}
+
+func (m *mockQuarantiner) QuarantineFile(src, destDir string) error {
+	return nil
+}
+
 func TestGetStatus(t *testing.T) {
 	t.Parallel()
 
@@ -19,7 +41,7 @@ func TestGetStatus(t *testing.T) {
 	defer lis.Close()
 
 	s := grpc.NewServer()
-	RegisterAegisServiceServer(s, NewServer(nil))
+	RegisterAegisServiceServer(s, NewServer(nil, &mockKiller{}, &mockIsolator{}, &mockQuarantiner{}))
 	defer s.Stop()
 
 	go func() {
@@ -56,7 +78,7 @@ func TestTriggerResponse(t *testing.T) {
 	defer lis.Close()
 
 	s := grpc.NewServer()
-	RegisterAegisServiceServer(s, NewServer(nil))
+	RegisterAegisServiceServer(s, NewServer(nil, &mockKiller{}, &mockIsolator{}, &mockQuarantiner{}))
 	defer s.Stop()
 
 	go func() {
@@ -71,8 +93,8 @@ func TestTriggerResponse(t *testing.T) {
 
 	client := NewAegisServiceClient(conn)
 	res, err := client.TriggerResponse(context.Background(), &ResponseRequest{
-		Action:        "KILL",
-		SecurityToken: "test-token",
+		Action:    "kill",
+		TargetPid: 1234,
 	})
 	if err != nil {
 		t.Fatalf("failed to trigger response: %v", err)
@@ -81,7 +103,7 @@ func TestTriggerResponse(t *testing.T) {
 	if !res.Success {
 		t.Errorf("expected success to be true")
 	}
-	if res.ActionExecuted != "KILL" {
-		t.Errorf("expected ActionExecuted KILL, got %s", res.ActionExecuted)
+	if res.ActionExecuted != "kill" {
+		t.Errorf("expected ActionExecuted kill, got %s", res.ActionExecuted)
 	}
 }

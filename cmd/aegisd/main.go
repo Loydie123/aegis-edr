@@ -7,10 +7,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"aegis-edr/pkg/api"
 	"aegis-edr/internal/config"
 	"aegis-edr/internal/logger"
+	"aegis-edr/internal/response/network"
+	"aegis-edr/internal/response/process"
+	"aegis-edr/internal/response/quarantine"
 	"aegis-edr/internal/storage"
+	"aegis-edr/pkg/api"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -59,9 +62,13 @@ func main() {
 	}
 	_ = os.Chmod(ipcPath, 0666)
 
+	killer := process.NewProcessTreeKiller()
+	isolator := network.NewNetworkIsolator()
+	key := []byte("12345678901234567890123456789012")
+	quarantiner := quarantine.NewQuarantiner(key)
 
 	grpcServer := grpc.NewServer()
-	api.RegisterAegisServiceServer(grpcServer, api.NewServer(store))
+	api.RegisterAegisServiceServer(grpcServer, api.NewServer(store, killer, isolator, quarantiner))
 
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {

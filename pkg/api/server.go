@@ -3,52 +3,56 @@ package api
 import (
 	"context"
 	"errors"
-	"runtime"
 	"time"
 
 	"aegis-edr/internal/forensics"
-	"aegis-edr/internal/response/network"
-	"aegis-edr/internal/response/process"
-	"aegis-edr/internal/response/quarantine"
 	"aegis-edr/internal/storage"
 )
 
-type Server struct {
-	UnimplementedAegisServiceServer
-	store *storage.Storage
+type ProcessKiller interface {
+	KillTree(pid int) error
 }
 
-func NewServer(store *storage.Storage) *Server {
-	return &Server{store: store}
+type NetworkIsolator interface {
+	IsolateHost() error
+	RestoreHost() error
+}
+
+type Quarantiner interface {
+	QuarantineFile(src, destDir string) error
+}
+
+type Server struct {
+	UnimplementedAegisServiceServer
+	store       *storage.Storage
+	killer      ProcessKiller
+	isolator    NetworkIsolator
+	quarantiner Quarantiner
+}
+
+func NewServer(store *storage.Storage, killer ProcessKiller, isolator NetworkIsolator, quarantiner Quarantiner) *Server {
+	return &Server{
+		store:       store,
+		killer:      killer,
+		isolator:    isolator,
+		quarantiner: quarantiner,
+	}
 }
 
 func (s *Server) GetStatus(ctx context.Context, req *StatusRequest) (*StatusResponse, error) {
-	var ms runtime.MemStats
-	runtime.ReadMemStats(&ms)
-	ramAllocMB := float64(ms.Alloc) / 1024 / 1024
-
-	cpuVal := 0.2 + (float64(time.Now().UnixNano()%100)/100.0)*1.3
-
 	return &StatusResponse{
-		Version:  "1.0.0-Beta",
-		Status:   "RUNNING",
-		CpuUsage: cpuVal,
-		RamUsage: ramAllocMB,
+		Version: "1.0.0-Beta",
+		Status:  "RUNNING",
 	}, nil
 }
-
 
 func (s *Server) RunScan(req *ScanRequest, stream AegisService_RunScanServer) error {
 	return nil
 }
 
 func (s *Server) TriggerResponse(ctx context.Context, req *ResponseRequest) (*ResponseResponse, error) {
-	if req.SecurityToken == "test-token" {
-		return &ResponseResponse{
-			Success:        true,
-			Message:        "Containment action validated (mock)",
-			ActionExecuted: req.Action,
-		}, nil
+	if s.killer == nil || s.isolator == nil || s.quarantiner == nil {
+		return nil, errors.New("containment engines not initialized")
 	}
 
 	switch req.Action {
@@ -56,8 +60,7 @@ func (s *Server) TriggerResponse(ctx context.Context, req *ResponseRequest) (*Re
 		if req.TargetPid <= 0 {
 			return nil, errors.New("invalid target PID")
 		}
-		killer := process.NewProcessTreeKiller()
-		if err := killer.KillTree(int(req.TargetPid)); err != nil {
+		if err := s.killer.KillTree(int(req.TargetPid)); err != nil {
 			return nil, err
 		}
 		return &ResponseResponse{
@@ -67,8 +70,7 @@ func (s *Server) TriggerResponse(ctx context.Context, req *ResponseRequest) (*Re
 		}, nil
 
 	case "isolate":
-		isolator := network.NewNetworkIsolator()
-		if err := isolator.IsolateHost(); err != nil {
+		if err := s.isolator.IsolateHost(); err != nil {
 			return nil, err
 		}
 		return &ResponseResponse{
@@ -78,8 +80,7 @@ func (s *Server) TriggerResponse(ctx context.Context, req *ResponseRequest) (*Re
 		}, nil
 
 	case "restore":
-		isolator := network.NewNetworkIsolator()
-		if err := isolator.RestoreHost(); err != nil {
+		if err := s.isolator.RestoreHost(); err != nil {
 			return nil, err
 		}
 		return &ResponseResponse{
@@ -92,9 +93,7 @@ func (s *Server) TriggerResponse(ctx context.Context, req *ResponseRequest) (*Re
 		if req.TargetFile == "" {
 			return nil, errors.New("target file path is required")
 		}
-		key := []byte("12345678901234567890123456789012")
-		q := quarantine.NewQuarantiner(key)
-		if err := q.QuarantineFile(req.TargetFile, "/var/lib/aegis/quarantine"); err != nil {
+		if err := s.quarantiner.QuarantineFile(req.TargetFile, "/var/lib/aegis/quarantine"); err != nil {
 			return nil, err
 		}
 		return &ResponseResponse{
