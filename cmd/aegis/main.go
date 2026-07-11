@@ -83,6 +83,40 @@ func main() {
 		},
 	}
 
+	var versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Print the AEGIS client and build version information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("AEGIS EDR Client Version: %s\n", Version)
+			fmt.Printf("Commit Hash             : %s\n", CommitHash)
+			fmt.Printf("Build Time              : %s\n", BuildTime)
+		},
+	}
+
+	var healthCmd = &cobra.Command{
+		Use:   "health",
+		Short: "Perform connection and dependency health checks",
+		Run: func(cmd *cobra.Command, args []string) {
+			client, conn, err := getGRPCClient()
+			if err != nil {
+				fmt.Printf("Health Check: FAILED (Cannot connect to daemon socket: %v)\n", err)
+				os.Exit(1)
+			}
+			defer conn.Close()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			res, err := client.GetStatus(ctx, &api.StatusRequest{})
+			if err != nil {
+				fmt.Printf("Health Check: FAILED (gRPC call failed: %v)\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Printf("Health Check: OK (Daemon state: %s, version: %s)\n", res.Status, res.Version)
+		},
+	}
+
 	var responseCmd = &cobra.Command{
 		Use:   "response",
 		Short: "Execute active containment responses",
@@ -244,7 +278,7 @@ func main() {
 	}
 	forensicsCmd.Flags().IntVar(&startOffsetMinutes, "minutes", 60, "Timeline window start offset in minutes")
 
-	rootCmd.AddCommand(statusCmd, responseCmd, forensicsCmd)
+	rootCmd.AddCommand(statusCmd, versionCmd, healthCmd, responseCmd, forensicsCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
