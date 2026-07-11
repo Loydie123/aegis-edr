@@ -1,0 +1,57 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libyara-dev pkg-config
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Compile Binaries
+        run: |
+          mkdir -p bin
+          GOOS=linux GOARCH=amd64 go build -o bin/aegis-linux-amd64 cmd/aegis/main.go
+          GOOS=linux GOARCH=amd64 go build -o bin/aegisd-linux-amd64 cmd/aegisd/main.go
+
+      - name: Generate SBOM
+        uses: CycloneDX/gh-gomod-generate-sbom@v2
+        with:
+          version: v1
+          args: mod -licenses -json -output bom.json
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Sign Binaries
+        run: |
+          cosign sign-blob --yes --output-signature bin/aegis-linux-amd64.sig bin/aegis-linux-amd64
+          cosign sign-blob --yes --output-signature bin/aegisd-linux-amd64.sig bin/aegisd-linux-amd64
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bin/aegis-linux-amd64
+            bin/aegis-linux-amd64.sig
+            bin/aegisd-linux-amd64
+            bin/aegisd-linux-amd64.sig
+            bom.json

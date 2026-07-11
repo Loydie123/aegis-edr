@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI Pipeline
 
 on:
   push:
@@ -11,8 +11,7 @@ on:
       - develop
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
   lint:
@@ -34,12 +33,37 @@ jobs:
       - name: Run Vet
         run: go vet ./...
 
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
       - name: Run Govulncheck
         uses: golang/govulncheck-action@v1
 
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Dependency Check
+        run: go list -m all
+
   test:
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [lint, security-scan]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -57,39 +81,12 @@ jobs:
       - name: Run Unit Tests
         run: go test -v -short -race -coverprofile=coverage.out ./...
 
-  build:
+  docs-validation:
     runs-on: ubuntu-latest
-    needs: test
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Validate Markdown Files
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libyara-dev pkg-config
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-
-      - name: Compile Binaries
-        run: |
-          mkdir -p bin
-          GOOS=linux GOARCH=amd64 go build -o bin/aegis-linux-amd64 cmd/aegis/main.go
-          GOOS=linux GOARCH=amd64 go build -o bin/aegisd-linux-amd64 cmd/aegisd/main.go
-
-      - name: Generate SBOM
-        uses: CycloneDX/gh-gomod-generate-sbom@v2
-        with:
-          version: v1
-          args: mod -licenses -json -output bom.json
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.5.0
-
-      - name: Sign Binaries
-        run: |
-          cosign sign-blob --yes --output-signature bin/aegis-linux-amd64.sig bin/aegis-linux-amd64
-          cosign sign-blob --yes --output-signature bin/aegisd-linux-amd64.sig bin/aegisd-linux-amd64
+          find . -name "*.md" | xargs -I {} file {}
