@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
+	"aegis-edr/internal/eventrouter"
 	"aegis-edr/internal/logger"
-	"aegis-edr/internal/monitor/eventrouter"
 	"aegis-edr/internal/storage"
 )
 

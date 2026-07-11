@@ -1,4 +1,4 @@
-package intelligence
+package intel
 
 import (
 	"context"

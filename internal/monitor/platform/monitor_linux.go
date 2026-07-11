@@ -3,7 +3,7 @@
 package platform
 
 import (
-	"aegis-edr/internal/monitor/eventrouter"
+	"aegis-edr/internal/eventrouter"
 )
 
 type LinuxProcessMonitor struct {
