@@ -56,3 +56,20 @@ func (m *WindowsNetworkMonitor) Start(router *eventrouter.Router) error {
 func (m *WindowsNetworkMonitor) Stop() error {
 	return nil
 }
+
+type WindowsRegistryMonitor struct {
+	router *eventrouter.Router
+}
+
+func newRegistryMonitor() RegistryMonitor {
+	return &WindowsRegistryMonitor{}
+}
+
+func (m *WindowsRegistryMonitor) Start(router *eventrouter.Router) error {
+	m.router = router
+	return nil
+}
+
+func (m *WindowsRegistryMonitor) Stop() error {
+	return nil
+}

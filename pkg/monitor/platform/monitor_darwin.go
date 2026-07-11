@@ -56,3 +56,20 @@ func (m *DarwinNetworkMonitor) Start(router *eventrouter.Router) error {
 func (m *DarwinNetworkMonitor) Stop() error {
 	return nil
 }
+
+type DarwinRegistryMonitor struct {
+	router *eventrouter.Router
+}
+
+func newRegistryMonitor() RegistryMonitor {
+	return &DarwinRegistryMonitor{}
+}
+
+func (m *DarwinRegistryMonitor) Start(router *eventrouter.Router) error {
+	m.router = router
+	return nil
+}
+
+func (m *DarwinRegistryMonitor) Stop() error {
+	return nil
+}

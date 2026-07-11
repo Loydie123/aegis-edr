@@ -56,3 +56,20 @@ func (m *LinuxNetworkMonitor) Start(router *eventrouter.Router) error {
 func (m *LinuxNetworkMonitor) Stop() error {
 	return nil
 }
+
+type LinuxRegistryMonitor struct {
+	router *eventrouter.Router
+}
+
+func newRegistryMonitor() RegistryMonitor {
+	return &LinuxRegistryMonitor{}
+}
+
+func (m *LinuxRegistryMonitor) Start(router *eventrouter.Router) error {
+	m.router = router
+	return nil
+}
+
+func (m *LinuxRegistryMonitor) Stop() error {
+	return nil
+}

@@ -30,3 +30,12 @@ type NetworkMonitor interface {
 func NewNetworkMonitor() NetworkMonitor {
 	return newNetworkMonitor()
 }
+
+type RegistryMonitor interface {
+	Start(router *eventrouter.Router) error
+	Stop() error
+}
+
+func NewRegistryMonitor() RegistryMonitor {
+	return newRegistryMonitor()
+}
