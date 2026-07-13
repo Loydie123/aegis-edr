@@ -217,6 +217,11 @@ func getGRPCClient() (api.AegisServiceClient, *grpc.ClientConn, error) {
 	}
 
 	token := cfg.Agent.IPCToken
+	if token == "" {
+		if data, readErr := os.ReadFile("/tmp/aegis.token"); readErr == nil {
+			token = string(data)
+		}
+	}
 	unaryInterceptor := func(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 		if token != "" {
 			ctx = metadata.AppendToOutgoingContext(ctx, "x-aegis-token", token)

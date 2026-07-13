@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
@@ -74,6 +76,20 @@ func main() {
 	}
 	quarantiner := quarantine.NewQuarantiner(key)
 	ipcToken := cfg.Agent.IPCToken
+	if ipcToken == "" {
+		b := make([]byte, 16)
+		if _, randErr := rand.Read(b); randErr == nil {
+			ipcToken = hex.EncodeToString(b)
+		} else {
+			ipcToken = "fallback-secure-token-1234567890"
+		}
+		tokenPath := "/tmp/aegis.token"
+		if errWrite := os.WriteFile(tokenPath, []byte(ipcToken), 0600); errWrite != nil {
+			logger.Log.Error("failed to write secure IPC token file", "path", tokenPath, "error", errWrite)
+		} else {
+			logger.Log.Info("Generated secure dynamic IPC token", "path", tokenPath)
+		}
+	}
 	apiServer := api.NewServer(store, killer, isolator, quarantiner, ipcToken)
 
 	grpcServer := grpc.NewServer(
@@ -118,5 +134,6 @@ func main() {
 	cancelPrune()
 	grpcServer.GracefulStop()
 	_ = os.Remove(ipcPath)
+	_ = os.Remove("/tmp/aegis.token")
 	logger.Log.Info("Aegis daemon stopped gracefully")
 }
