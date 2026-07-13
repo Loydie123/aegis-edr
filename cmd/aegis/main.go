@@ -11,6 +11,7 @@ import (
 
 	"aegis-edr/internal/benchmark"
 	"aegis-edr/internal/config"
+	"aegis-edr/internal/doctor"
 	"aegis-edr/pkg/api"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -787,7 +788,22 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(statusCmd, versionCmd, healthCmd, configCmd, responseCmd, forensicsCmd, huntCmd, investigateCmd, timelineCmd, traceCmd, benchmarkCmd)
+	var doctorCmd = &cobra.Command{
+		Use:   "doctor",
+		Short: "Run self-diagnostics checks on EDR components, database, YARA and policies",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("Running EDR system self-diagnostics doctor... Please wait.")
+			runner := doctor.NewDiagnostics()
+			report, err := runner.Run(context.Background())
+			if err != nil {
+				fmt.Printf("Error: self-diagnostics suite failed: %v\n", err)
+				os.Exit(1)
+			}
+			runner.Print(report)
+		},
+	}
+
+	rootCmd.AddCommand(statusCmd, versionCmd, healthCmd, configCmd, responseCmd, forensicsCmd, huntCmd, investigateCmd, timelineCmd, traceCmd, benchmarkCmd, doctorCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
