@@ -512,7 +512,266 @@ func main() {
 	}
 	forensicsCmd.Flags().IntVar(&startOffsetMinutes, "minutes", 60, "Timeline window start offset in minutes")
 
-	rootCmd.AddCommand(statusCmd, versionCmd, healthCmd, configCmd, responseCmd, forensicsCmd)
+	var huntType string
+	var huntQuery string
+	var huntRisk float64
+	var huntMitre string
+	var huntIoc string
+
+	var huntCmd = &cobra.Command{
+		Use:   "hunt",
+		Short: "Search database for threats using queries, risk, MITRE tags, or IOCs",
+		Run: func(cmd *cobra.Command, args []string) {
+			cfg, _ := config.LoadConfig("configs/aegis.yaml")
+			dbPath := "telemetry.db"
+			if cfg != nil && cfg.Storage.Path != "" {
+				dbPath = cfg.Storage.Path
+			}
+			db, err := sql.Open("sqlite", dbPath)
+			if err != nil {
+				fmt.Printf("Error: failed to open telemetry database: %v\n", err)
+				os.Exit(1)
+			}
+			defer db.Close()
+
+			if huntIoc != "" {
+				rows, err := db.Query("SELECT binary_path, command_line, username FROM processes WHERE sha256 = ?", huntIoc)
+				if err == nil {
+					fmt.Println("IOC MATCHING PROCESSES:")
+					for rows.Next() {
+						var bin, cmdLine, user string
+						_ = rows.Scan(&bin, &cmdLine, &user)
+						fmt.Printf("Process: %s (args: %s) run by %s\n", bin, cmdLine, user)
+					}
+					rows.Close()
+				}
+				return
+			}
+
+			if huntRisk > 0 {
+				rows, err := db.Query("SELECT rule_name, category, risk_score, description FROM alert_logs WHERE risk_score >= ?", huntRisk)
+				if err == nil {
+					fmt.Println("ALERTS BY RISK THRESHOLD:")
+					for rows.Next() {
+						var rule, cat, desc string
+						var score float64
+						_ = rows.Scan(&rule, &cat, &score, &desc)
+						fmt.Printf("[%s] Score: %.2f - %s\n", rule, score, desc)
+					}
+					rows.Close()
+				}
+				return
+			}
+
+			if huntMitre != "" {
+				rows, err := db.Query("SELECT rule_name, category, risk_score, description FROM alert_logs WHERE category LIKE ?", "%"+huntMitre+"%")
+				if err == nil {
+					fmt.Println("ALERTS BY MITRE / CATEGORY TAG:")
+					for rows.Next() {
+						var rule, cat, desc string
+						var score float64
+						_ = rows.Scan(&rule, &cat, &score, &desc)
+						fmt.Printf("[%s] Tag: %s - %s\n", rule, cat, desc)
+					}
+					rows.Close()
+				}
+				return
+			}
+
+			if huntType == "file" {
+				rows, err := db.Query("SELECT file_path, action FROM file_modifications WHERE file_path LIKE ?", "%"+huntQuery+"%")
+				if err == nil {
+					fmt.Println("FILE HUNT RESULTS:")
+					for rows.Next() {
+						var path, action string
+						_ = rows.Scan(&path, &action)
+						fmt.Printf("[%s] %s\n", action, path)
+					}
+					rows.Close()
+				}
+			} else if huntType == "network" {
+				rows, err := db.Query("SELECT protocol, remote_ip, remote_port FROM network_connections WHERE remote_ip LIKE ?", "%"+huntQuery+"%")
+				if err == nil {
+					fmt.Println("NETWORK HUNT RESULTS:")
+					for rows.Next() {
+						var proto, ip string
+						var port int
+						_ = rows.Scan(&proto, &ip, &port)
+						fmt.Printf("[%s] %s:%d\n", proto, ip, port)
+					}
+					rows.Close()
+				}
+			} else {
+				rows, err := db.Query("SELECT binary_path, command_line FROM processes WHERE binary_path LIKE ?", "%"+huntQuery+"%")
+				if err == nil {
+					fmt.Println("PROCESS HUNT RESULTS:")
+					for rows.Next() {
+						var bin, cmdLine string
+						_ = rows.Scan(&bin, &cmdLine)
+						fmt.Printf("Bin: %s | Args: %s\n", bin, cmdLine)
+					}
+					rows.Close()
+				}
+			}
+		},
+	}
+	huntCmd.Flags().StringVar(&huntType, "type", "process", "Type to query: process, file, network")
+	huntCmd.Flags().StringVar(&huntQuery, "query", "", "Filter query string")
+	huntCmd.Flags().Float64Var(&huntRisk, "risk", 0.0, "Filter alerts by minimum risk score")
+	huntCmd.Flags().StringVar(&huntMitre, "mitre", "", "Filter alerts by MITRE / category tag")
+	huntCmd.Flags().StringVar(&huntIoc, "ioc", "", "Filter processes by malicious SHA-256 IOC hash")
+
+	var investigateCmd = &cobra.Command{
+		Use:   "investigate [pid]",
+		Short: "Investigate file renames, connections, and alerts of a PID process tree",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			targetPid := args[0]
+			cfg, _ := config.LoadConfig("configs/aegis.yaml")
+			dbPath := "telemetry.db"
+			if cfg != nil && cfg.Storage.Path != "" {
+				dbPath = cfg.Storage.Path
+			}
+			db, err := sql.Open("sqlite", dbPath)
+			if err != nil {
+				fmt.Printf("Error: failed to open telemetry database: %v\n", err)
+				os.Exit(1)
+			}
+			defer db.Close()
+
+			var bin, cmdLine, user string
+			err = db.QueryRow("SELECT binary_path, command_line, username FROM processes WHERE process_id = ?", targetPid).Scan(&bin, &cmdLine, &user)
+			if err != nil {
+				fmt.Printf("Process PID %s not found in telemetry history\n", targetPid)
+				os.Exit(1)
+			}
+
+			fmt.Printf("PROCESS INVESTIGATION FOR PID %s\n", targetPid)
+			fmt.Println("=======================================")
+			fmt.Printf("Binary Path: %s\n", bin)
+			fmt.Printf("Command    : %s\n", cmdLine)
+			fmt.Printf("User       : %s\n\n", user)
+
+			fRows, err := db.Query("SELECT file_path, action FROM file_modifications WHERE process_id = ?", targetPid)
+			if err == nil {
+				fmt.Println("FILE INTEGRITY LOGS:")
+				for fRows.Next() {
+					var path, action string
+					_ = fRows.Scan(&path, &action)
+					fmt.Printf("  [%s] %s\n", action, path)
+				}
+				fRows.Close()
+				fmt.Println()
+			}
+
+			nRows, err := db.Query("SELECT protocol, remote_ip, remote_port FROM network_connections WHERE process_id = ?", targetPid)
+			if err == nil {
+				fmt.Println("NETWORK CONNECTIONS:")
+				for nRows.Next() {
+					var proto, ip string
+					var port int
+					_ = nRows.Scan(&proto, &ip, &port)
+					fmt.Printf("  [%s] %s:%d\n", proto, ip, port)
+				}
+				nRows.Close()
+				fmt.Println()
+			}
+
+			aRows, err := db.Query("SELECT rule_name, risk_score, description FROM alert_logs WHERE process_id = ?", targetPid)
+			if err == nil {
+				fmt.Println("ASSOCIATED ALERTS:")
+				for aRows.Next() {
+					var rule, desc string
+					var score float64
+					_ = aRows.Scan(&rule, &score, &desc)
+					fmt.Printf("  [%s] Score: %.2f - %s\n", rule, score, desc)
+				}
+				aRows.Close()
+			}
+		},
+	}
+
+	var timelineOffset int
+	var timelineCmd = &cobra.Command{
+		Use:   "timeline",
+		Short: "Direct chronological timeline extraction query",
+		Run: func(cmd *cobra.Command, args []string) {
+			client, conn, err := getGRPCClient()
+			if err != nil {
+				fmt.Printf("Error: failed to connect to daemon: %v\n", err)
+				os.Exit(4)
+			}
+			defer conn.Close()
+
+			ctx := context.Background()
+			end := time.Now().Unix()
+			start := time.Now().Add(-time.Duration(timelineOffset) * time.Minute).Unix()
+
+			stream, err := client.GetTimeline(ctx, &api.TimelineRequest{
+				StartTimeEpoch: start,
+				EndTimeEpoch:   end,
+			})
+			if err != nil {
+				fmt.Printf("Error: failed to query timeline: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Println("CHRONOLOGICAL INCIDENT TIMELINE")
+			fmt.Println("=======================================")
+			for {
+				ev, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					fmt.Printf("Error: stream broken: %v\n", err)
+					os.Exit(1)
+				}
+				fmt.Printf("[%s] [%s] %s\n", ev.Timestamp, ev.Category, ev.Description)
+			}
+		},
+	}
+	timelineCmd.Flags().IntVar(&timelineOffset, "minutes", 60, "Timeline window start offset in minutes")
+
+	var traceCmd = &cobra.Command{
+		Use:   "trace [pid]",
+		Short: "Trace execution parent lineage tree up to system root",
+		Args:  cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			targetPid := args[0]
+			cfg, _ := config.LoadConfig("configs/aegis.yaml")
+			dbPath := "telemetry.db"
+			if cfg != nil && cfg.Storage.Path != "" {
+				dbPath = cfg.Storage.Path
+			}
+			db, err := sql.Open("sqlite", dbPath)
+			if err != nil {
+				fmt.Printf("Error: failed to open database: %v\n", err)
+				os.Exit(1)
+			}
+			defer db.Close()
+
+			fmt.Printf("PROCESS PARENT-CHILD EXECUTION LINEAGE FOR PID %s:\n", targetPid)
+			fmt.Println("=======================================")
+			indent := ""
+			for {
+				var parentId int
+				var bin, cmdLine string
+				err = db.QueryRow("SELECT parent_id, binary_path, command_line FROM processes WHERE process_id = ?", targetPid).Scan(&parentId, &bin, &cmdLine)
+				if err != nil {
+					break
+				}
+				fmt.Printf("%s[PID %s] %s (args: %s)\n", indent, targetPid, bin, cmdLine)
+				if parentId <= 0 || targetPid == fmt.Sprintf("%d", parentId) {
+					break
+				}
+				targetPid = fmt.Sprintf("%d", parentId)
+				indent += "  ↳ "
+			}
+		},
+	}
+
+	rootCmd.AddCommand(statusCmd, versionCmd, healthCmd, configCmd, responseCmd, forensicsCmd, huntCmd, investigateCmd, timelineCmd, traceCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
