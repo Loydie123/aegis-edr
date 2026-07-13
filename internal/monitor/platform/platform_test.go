@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"aegis-edr/internal/core"
 	"aegis-edr/internal/eventrouter"
 	"aegis-edr/internal/logger"
 	"aegis-edr/internal/storage"
@@ -14,10 +15,10 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestProcessMonitorLifecycle(t *testing.T) {
+func TestMonitorsLifecycle(t *testing.T) {
 	t.Parallel()
 
-	tmpfile, err := os.CreateTemp("", "aegis_plat_*.db")
+	tmpfile, err := os.CreateTemp("", "aegis_plat_test_*.db")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,110 +35,29 @@ func TestProcessMonitorLifecycle(t *testing.T) {
 	router.Start()
 	defer router.Stop()
 
-	pm := NewProcessMonitor()
-	err = pm.Start(router)
-	if err != nil {
-		t.Fatalf("expected Start to succeed, got %v", err)
+	eb := core.NewEventBus()
+
+	monitors := []interface {
+		Start(router *eventrouter.Router, eb *core.EventBus) error
+		Stop() error
+	}{
+		NewProcessMonitor(),
+		NewFileMonitor(),
+		NewNetworkMonitor(),
+		NewRegistryMonitor(),
+		NewServiceMonitor(),
+		NewDriverMonitor(),
+		NewUsbMonitor(),
+		NewScheduledTaskMonitor(),
+		NewStartupMonitor(),
 	}
 
-	err = pm.Stop()
-	if err != nil {
-		t.Fatalf("expected Stop to succeed, got %v", err)
-	}
-}
-
-func TestFileMonitorLifecycle(t *testing.T) {
-	t.Parallel()
-
-	tmpfile, err := os.CreateTemp("", "aegis_plat_file_*.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(tmpfile.Name())
-	tmpfile.Close()
-
-	store, err := storage.NewStorage(tmpfile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-
-	router := eventrouter.NewRouter(10, store)
-	router.Start()
-	defer router.Stop()
-
-	fm := NewFileMonitor()
-	err = fm.Start(router)
-	if err != nil {
-		t.Fatalf("expected Start to succeed, got %v", err)
-	}
-
-	err = fm.Stop()
-	if err != nil {
-		t.Fatalf("expected Stop to succeed, got %v", err)
-	}
-}
-
-func TestNetworkMonitorLifecycle(t *testing.T) {
-	t.Parallel()
-
-	tmpfile, err := os.CreateTemp("", "aegis_plat_net_*.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(tmpfile.Name())
-	tmpfile.Close()
-
-	store, err := storage.NewStorage(tmpfile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-
-	router := eventrouter.NewRouter(10, store)
-	router.Start()
-	defer router.Stop()
-
-	nm := NewNetworkMonitor()
-	err = nm.Start(router)
-	if err != nil {
-		t.Fatalf("expected Start to succeed, got %v", err)
-	}
-
-	err = nm.Stop()
-	if err != nil {
-		t.Fatalf("expected Stop to succeed, got %v", err)
-	}
-}
-
-func TestRegistryMonitorLifecycle(t *testing.T) {
-	t.Parallel()
-
-	tmpfile, err := os.CreateTemp("", "aegis_plat_reg_*.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(tmpfile.Name())
-	tmpfile.Close()
-
-	store, err := storage.NewStorage(tmpfile.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-
-	router := eventrouter.NewRouter(10, store)
-	router.Start()
-	defer router.Stop()
-
-	rm := NewRegistryMonitor()
-	err = rm.Start(router)
-	if err != nil {
-		t.Fatalf("expected Start to succeed, got %v", err)
-	}
-
-	err = rm.Stop()
-	if err != nil {
-		t.Fatalf("expected Stop to succeed, got %v", err)
+	for i, m := range monitors {
+		if err := m.Start(router, eb); err != nil {
+			t.Fatalf("monitor %d: expected Start to succeed, got %v", i, err)
+		}
+		if err := m.Stop(); err != nil {
+			t.Fatalf("monitor %d: expected Stop to succeed, got %v", i, err)
+		}
 	}
 }
