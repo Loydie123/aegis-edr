@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"aegis-edr/internal/benchmark"
 	"aegis-edr/internal/config"
 	"aegis-edr/pkg/api"
 	tea "github.com/charmbracelet/bubbletea"
@@ -771,7 +772,22 @@ func main() {
 		},
 	}
 
-	rootCmd.AddCommand(statusCmd, versionCmd, healthCmd, configCmd, responseCmd, forensicsCmd, huntCmd, investigateCmd, timelineCmd, traceCmd)
+	var benchmarkCmd = &cobra.Command{
+		Use:   "benchmark",
+		Short: "Measure EDR agent throughput, database performance, and detection latency",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("Running EDR system benchmarks... Please wait.")
+			runner := benchmark.NewRunner()
+			results, err := runner.RunAll(context.Background())
+			if err != nil {
+				fmt.Printf("Error: benchmarking suite failed: %v\n", err)
+				os.Exit(1)
+			}
+			runner.PrintResults(results)
+		},
+	}
+
+	rootCmd.AddCommand(statusCmd, versionCmd, healthCmd, configCmd, responseCmd, forensicsCmd, huntCmd, investigateCmd, timelineCmd, traceCmd, benchmarkCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
