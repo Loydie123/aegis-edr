@@ -257,8 +257,9 @@ func main() {
 	}
 
 	var statusCmd = &cobra.Command{
-		Use:   "status",
-		Short: "View daemon health and configuration profiles",
+		Use:     "status",
+		Aliases: []string{"monitor"},
+		Short:   "View daemon health and configuration profiles",
 		Run: func(cmd *cobra.Command, args []string) {
 			client, conn, err := getGRPCClient()
 			if err != nil {
